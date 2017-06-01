@@ -133,13 +133,4 @@ defmodule Modbus.Tcp.Master do
     end)
   end
 
-  defp init(params) do
-    ip = Keyword.fetch!(params, :ip)
-    port = Keyword.fetch!(params, :port)
-    timeout = Keyword.get(params, :timeout, @to)
-    {:ok, socket} = :gen_tcp.connect(ip, port,
-      [:binary, packet: :raw, active: :false], timeout)
-    {socket, 0}
-  end
-
 end
