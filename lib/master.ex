@@ -81,7 +81,15 @@ defmodule Modbus.Tcp.Master do
   ```
   """
   def start_link(params, opts \\ []) do
-    Agent.start_link(fn -> init(params) end, opts)
+    ip = Keyword.fetch!(params, :ip)
+    port = Keyword.fetch!(params, :port)
+    timeout = Keyword.get(params, :timeout, @to)
+    case :gen_tcp.connect(ip, port, [:binary, packet: :raw, active: :false], timeout) do
+      {:ok, socket} ->
+        Agent.start_link(fn -> {socket, 0} end, opts)
+      error ->
+        error
+    end
   end
 
   @doc """
