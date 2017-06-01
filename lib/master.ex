@@ -88,6 +88,10 @@ defmodule Modbus.Tcp.Master do
   Stops the Server.
   """
   def stop(pid) do
+    Agent.get_and_update(pid, fn {socket, transid} ->
+                                 :ok = :gen_tcp.close(socket)
+                                 {:ok, {nil, -1}}
+                              end)
     Agent.stop(pid)
   end
 
