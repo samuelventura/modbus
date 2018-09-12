@@ -57,7 +57,7 @@ defmodule Modbus.Tcp.Master do
   ```
   """
   alias Modbus.Tcp
-
+  require Logger
   @to 2000
 
   ##########################################
@@ -80,15 +80,34 @@ defmodule Modbus.Tcp.Master do
   Modbus.Tcp.Master.start_link([ip: {10,77,0,2}, port: 502, timeout: 2000])
   ```
   """
+
   def start_link(params, opts \\ []) do
     Agent.start_link(fn -> init(params) end, opts)
   end
+
+  def child_spec(opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [opts]},
+      type: :worker,
+      restart: :permanent,
+      shutdown: 500
+    }
+  end
+
 
   @doc """
   Stops the Server.
   """
   def stop(pid) do
     Agent.stop(pid)
+  end
+
+  @doc """
+  Gets the state of the Server.
+  """
+  def state(pid) do
+    Agent.get(pid, fn state -> state end)
   end
 
   @doc """
@@ -108,26 +127,39 @@ defmodule Modbus.Tcp.Master do
   Returns `:ok` | `{:ok, [values]}`.
   """
   def exec(pid, cmd, timeout \\ @to) do
-    Agent.get_and_update(pid, fn {socket, transid} ->
-      request = Tcp.pack_req(cmd, transid)
-      length = Tcp.res_len(cmd)
-      :ok = :gen_tcp.send(socket, request)
-      {:ok, response} = :gen_tcp.recv(socket, length, timeout)
-      values = Tcp.parse_res(cmd, response, transid)
-      case values do
-        nil -> {:ok, {socket, transid + 1}}
-        _ -> {{:ok, values}, {socket, transid + 1}}
-      end
-    end)
+    Logger.info(inspect(state(pid)))
+    case state(pid) do
+      {:error, reason} ->
+        {:error, reason}
+      _->
+        Agent.get_and_update(pid, fn {socket, transid} ->
+        request = Tcp.pack_req(cmd, transid)
+        length = Tcp.res_len(cmd)
+        :gen_tcp.send(socket, request)
+        case :gen_tcp.recv(socket, length, timeout) do
+          {:ok, response} ->
+            values = Tcp.parse_res(cmd, response, transid)
+            Logger.info(inspect(values))
+            case values do
+              nil -> {:ok, {socket, transid + 1}}
+              _ -> {{:ok, values}, {socket, transid + 1}}
+            end
+          {:error, reason} ->
+            Logger.debug("Error: #{reason}")
+            {{:error, reason}, {socket, transid}}
+        end
+        end)
+    end
   end
-
+  #returns the state ()
   defp init(params) do
     ip = Keyword.fetch!(params, :ip)
     port = Keyword.fetch!(params, :port)
     timeout = Keyword.get(params, :timeout, @to)
-    {:ok, socket} = :gen_tcp.connect(ip, port,
-      [:binary, packet: :raw, active: :false], timeout)
-    {socket, 0}
+    case :gen_tcp.connect(ip, port, [:binary, packet: :raw, active: :false], timeout) do
+      {:ok, socket} -> {socket, 0} #state
+      {:error, reason} -> {:error, reason} #state
+    end
   end
 
 end

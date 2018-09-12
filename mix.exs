@@ -20,7 +20,8 @@ defmodule Modbus.Mixfile do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.12", only: :dev},
+      {:ex_doc, "~> 0.16", only: :dev},
+      {:ring_logger, "~> 0.4"},
     ]
   end
 
