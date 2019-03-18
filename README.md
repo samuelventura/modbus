@@ -16,7 +16,7 @@ Based on:
 
   ```elixir
   def deps do
-    [{:modbus, "~> 0.3.6"}]
+    [{:modbus, "~> 0.3.7"}]
   end
   ```
 
@@ -93,11 +93,23 @@ Based on:
   ...
   ```
 
+## Endianess
+
+- [Erlang default endianess is BIG](http://erlang.org/doc/programming_examples/bit_syntax.html#Defaults)
+- [MODBUS default endianess is BIG (p.34)](http://modbus.org/docs/PI_MBUS_300.pdf)
+- [MODBUS CRC endianess is LITTLE (p.16)](http://modbus.org/docs/PI_MBUS_300.pdf)
+- [Opto22 FLOAT endianess is BIG (p.27)](http://www.opto22.com/documents/1678_Modbus_TCP_Protocol_Guide.pdf)
+
 ## Roadmap
 
 Future
 
 - [ ] Improve documentation and samples
+- [ ] Improve error handling
+
+Version 0.3.7
+
+- [x] Changed little endian flag from :se to :le
 
 Version 0.3.6
 

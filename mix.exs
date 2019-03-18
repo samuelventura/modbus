@@ -3,7 +3,7 @@ defmodule Modbus.Mixfile do
 
   def project do
     [app: :modbus,
-     version: "0.3.6",
+     version: "0.3.7",
      elixir: "~> 1.3",
      compilers: [:elixir, :app],
      build_embedded: Mix.env == :prod,
@@ -20,7 +20,8 @@ defmodule Modbus.Mixfile do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.12", only: :dev},
+      {:ex_doc, "~> 0.16", only: :dev},
+      {:ring_logger, "~> 0.4"},
     ]
   end
 
