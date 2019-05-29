@@ -139,7 +139,6 @@ defmodule Modbus.Tcp.Master do
   Returns `:ok` | `{:ok, [values]}`.
   """
   def exec(pid, cmd, timeout \\ @to) do
-    Logger.info(inspect(state(pid)))
     case state(pid) do
       {:error, reason} ->
         {:error, reason}
@@ -151,7 +150,6 @@ defmodule Modbus.Tcp.Master do
         case :gen_tcp.recv(socket, length, timeout) do
           {:ok, response} ->
             values = Tcp.parse_res(cmd, response, transid)
-            Logger.info(inspect(values))
             case values do
               nil -> {:ok, {socket, transid + 1}}
               _ -> {{:ok, values}, {socket, transid + 1}}
