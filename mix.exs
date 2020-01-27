@@ -3,8 +3,8 @@ defmodule Modbus.Mixfile do
 
   def project do
     [app: :modbus,
-     version: "0.3.7",
-     elixir: "~> 1.3",
+     version: "0.3.8",
+     elixir: "~> 1.7",
      compilers: [:elixir, :app],
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
@@ -20,7 +20,7 @@ defmodule Modbus.Mixfile do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.16", only: :dev},
+      {:ex_doc, "~> 0.19.3", only: :dev},
       {:ring_logger, "~> 0.4"},
     ]
   end
@@ -40,8 +40,8 @@ defmodule Modbus.Mixfile do
 
   defp aliases do
     [
-      "opto22": ["run script/opto22.exs"],
-      "slave": ["run script/slave.exs"],
+      opto22: ["run script/opto22.exs"],
+      slave: ["run script/slave.exs"],
     ]
   end
 end
