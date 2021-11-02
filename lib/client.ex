@@ -253,7 +253,7 @@ defmodule Modbus.Tcp.Client do
         new_state = %Client{state | socket: socket, status: :connected, d_pid: ctrl_pid} #state
         {:reply, :ok, new_state}
       {:error, reason} ->
-        Logger.debug(reason)
+        Logger.debug(inspect(reason))
         {:reply, {:error,reason}, state} #state
     end
   end

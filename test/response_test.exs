@@ -53,7 +53,7 @@ defmodule ResponseTest do
   end
 
   defp l2b1(list) do
-    lists = Enum.chunk(list, 8, 8, [0, 0, 0, 0, 0, 0, 0, 0])
+    lists = Enum.chunk_every(list, 8, 8, [0, 0, 0, 0, 0, 0, 0, 0])
     list = for [v0, v1, v2, v3, v4, v5, v6, v7] <- lists do
       << v7::1, v6::1, v5::1, v4::1, v3::1, v2::1, v1::1, v0::1 >>
     end

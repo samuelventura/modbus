@@ -49,8 +49,8 @@ defmodule Modbus.Helper do
   defp crc(<<>>, hi, lo), do: <<hi, lo>>
   defp crc(data, hi, lo) do
     <<first, tail::binary>> = data
-    index = lo ^^^ first
-    lo = hi ^^^ Enum.at(@hi, index)
+    index = bxor(lo, first)
+    lo = bxor(hi, Enum.at(@hi, index))
     hi = Enum.at(@lo, index)
     crc(tail, hi, lo)
   end
@@ -84,7 +84,7 @@ defmodule Modbus.Helper do
   end
 
   def bitlist_to_bin(values) do
-    lists = Enum.chunk(values, 8, 8, [0, 0, 0, 0, 0, 0, 0, 0])
+    lists = Enum.chunk_every(values, 8, 8, [0, 0, 0, 0, 0, 0, 0, 0])
     list = for list8 <- lists do
       [v0, v1, v2, v3, v4, v5, v6, v7] = for b <- list8 do
         bool_to_byte(b) #enforce 0 or 1 only
