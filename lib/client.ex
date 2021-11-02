@@ -68,7 +68,7 @@ defmodule Modbus.Tcp.Client do
   """
 
   defstruct ip: nil,
-            tcp_port: nil,
+            port: nil,
             socket: nil,
             timeout: @to,
             active: false,
@@ -83,7 +83,7 @@ defmodule Modbus.Tcp.Client do
   @type client_option ::
         {:ip, {byte(),byte(),byte(),byte()}}
       | {:active, boolean}
-      | {:tcp_port, non_neg_integer}
+      | {:port, non_neg_integer}
       | {:timeout, non_neg_integer}
   ##########################################
   # Public API
@@ -94,7 +94,7 @@ defmodule Modbus.Tcp.Client do
 
   `state` is a keyword list where:
   `ip` is the internet address to connect to.
-  `tcp_port` is the tcp port number to connect to.
+  `port` is the tcp port number to connect to.
   `socket` is the port of the Modbus Client.
   `timeout` is the connection timeout.
   `active` the way in which massages are received.
@@ -200,7 +200,7 @@ defmodule Modbus.Tcp.Client do
 
   #callbacks
   def init(args) do
-    port = args[:tcp_port] || @port
+    port = args[:port] || @port
     ip = args[:ip] || @ip
     timeout = args[:timeout] || @timeout
     status = :closed
@@ -210,7 +210,7 @@ defmodule Modbus.Tcp.Client do
       else
         args[:active]
       end
-    state = %Client{ip: ip, tcp_port: port, timeout: timeout, status: status, active: active}
+    state = %Client{ip: ip, port: port, timeout: timeout, status: status, active: active}
     {:ok, state}
   end
 
@@ -222,7 +222,7 @@ defmodule Modbus.Tcp.Client do
   def handle_call({:configure, args}, _from, state) do
     case state.status do
       :closed ->
-        port = args[:tcp_port] || state.tcp_port
+        port = args[:port] || state.port
         ip = args[:ip] || state.ip
         timeout = args[:timeout] || state.timeout
         d_pid = args[:d_pid] || state.d_pid
@@ -232,7 +232,7 @@ defmodule Modbus.Tcp.Client do
           else
             args[:active]
           end
-        new_state = %Client{state | ip: ip, tcp_port: port, timeout: timeout, active: active, d_pid: d_pid}
+        new_state = %Client{state | ip: ip, port: port, timeout: timeout, active: active, d_pid: d_pid}
         {:reply, :ok, new_state}
       _ ->
         {:reply, :error, state}
@@ -242,7 +242,7 @@ defmodule Modbus.Tcp.Client do
   def handle_call(:connect, {from,_ref}, state) do
     Logger.debug(inspect(state))
     Logger.debug(inspect(from))
-    case :gen_tcp.connect(state.ip, state.tcp_port, [:binary, packet: :raw, active: state.active], state.timeout) do
+    case :gen_tcp.connect(state.ip, state.port, [:binary, packet: :raw, active: state.active], state.timeout) do
       {:ok, socket} ->
         ctrl_pid =
           if state.d_pid == nil do
