@@ -1,12 +1,59 @@
 defmodule Modbus.Tcp.Slave do
-  @moduledoc false
-  import Supervisor.Spec
-  alias Modbus.Model.Shared
-  alias Modbus.Tcp
-  require Logger
+  defmodule Child do
+    require Logger
+    alias Modbus.Model.Shared
+    alias Modbus.Tcp
 
-  def start_link(params, opts \\ []) do
-    Agent.start_link(fn -> init(params) end, opts)
+    def child_spec(args) do
+      %{
+        id: __MODULE__,
+        start: {__MODULE__, :start_child, args},
+        restart: :temporary
+      }
+    end
+
+    def start_child(socket, shared) do
+      {:ok, spawn_link(fn ->
+        receive do
+          :go ->
+            loop(socket, shared)
+        end
+      end)}
+    end
+
+    defp loop(socket, shared) do
+      case :gen_tcp.recv(socket, 0) do
+        {:ok, data} ->
+          {cmd, transid} = Tcp.parse_req(data)
+          Logger.info(inspect({cmd, transid}))
+          case Shared.apply(shared, cmd) do
+            {:ok, values} ->
+              Logger.info("msg send")
+              resp = Tcp.pack_res(cmd, values, transid)
+              :ok = :gen_tcp.send(socket, resp)
+            :error ->
+              Logger.info("an error has occurred")
+          end
+          loop(socket, shared)
+        {:error, reason} ->
+        #agregar shared
+          Logger.info("Error R: #{reason}")
+        #model = Shared.state(shared)
+        #port = state(self())[:port]
+        #Logger.info("Me reconectare")
+        #start_link([model: model, port: port])
+        #loop(socket, shared)
+      end
+    end
+  end
+
+  @moduledoc false
+  alias Modbus.Model.Shared
+  require Logger
+  use Agent
+
+  def start_link(params) do
+    Agent.start_link(fn -> init(params) end)
   end
 
   def stop(pid) do
@@ -15,12 +62,12 @@ defmodule Modbus.Tcp.Slave do
 
   #comply with formward id
   def id(pid) do
-    case state(pid) do
-      {:error, reason}->
+    Agent.get(pid, fn
+      {:error, reason} ->
         {:error, reason}
-      _->
-        Agent.get(pid, fn %{ip: ip, port: port, name: name} -> {:ok, %{ip: ip, port: port, name: name}} end)
-    end
+
+      %{ip: ip, port: port, name: name} -> {:ok, %{ip: ip, port: port, name: name}}
+    end)
   end
 
   def state(pid) do
@@ -35,8 +82,7 @@ defmodule Modbus.Tcp.Slave do
     {:ok, listener} ->
       {:ok, {ip, port}} = :inet.sockname(listener)
       name = Keyword.get(params, :name, name(ip, port))
-      spec = worker(__MODULE__, [], restart: :temporary, function: :start_child)
-      {:ok, sup} = Supervisor.start_link([spec], strategy: :simple_one_for_one)
+      {:ok, sup} = DynamicSupervisor.start_link(strategy: :one_for_one)
       accept = spawn_link(fn -> accept(listener, sup, shared) end)
       %{ip: ip, port: port, name: name, shared: shared, sup: sup, accept: accept, listener: listener}
     {:error, reason}->
@@ -54,46 +100,12 @@ defmodule Modbus.Tcp.Slave do
     case :gen_tcp.accept(listener) do
       {:ok, socket} ->
         Logger.debug("New Client")
-        {:ok, pid} = Supervisor.start_child(sup, [socket, model])
+        {:ok, pid} = DynamicSupervisor.start_child(sup, {Child, [socket, model]})
         :ok = :gen_tcp.controlling_process(socket, pid)
         send pid, :go
         accept(listener, sup, model)
       {:error, reason} ->
         Logger.debug("Error A: #{reason}")
     end
-  end
-
-  def start_child(socket, shared) do
-    {:ok, spawn_link(fn ->
-      receive do
-        :go ->
-          loop(socket, shared)
-      end
-    end)}
-  end
-
-  defp loop(socket, shared) do
-    case :gen_tcp.recv(socket, 0) do
-      {:ok, data} ->
-        {cmd, transid} = Tcp.parse_req(data)
-        Logger.info(inspect({cmd, transid}))
-        case Shared.apply(shared, cmd) do
-          {:ok, values} ->
-            Logger.info("msg send")
-            resp = Tcp.pack_res(cmd, values, transid)
-            :ok = :gen_tcp.send(socket, resp)
-          :error ->
-            Logger.info("an error has occur")
-        end
-        loop(socket, shared)
-      {:error, reason} ->
-        #agregar shared
-        Logger.info("Error R: #{reason}")
-        #model = Shared.state(shared)
-        #port = state(self())[:port]
-        #Logger.info("Me reconectare")
-        #start_link([model: model, port: port])
-        #loop(socket, shared)
-      end
   end
 end
