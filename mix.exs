@@ -35,7 +35,7 @@ defmodule Modbus.Mixfile do
       name: :modbus,
       files: ["lib", "test", "script", "mix.*", "*.exs", "*.md", ".gitignore", "LICENSE"],
       maintainers: ["Samuel Ventura"],
-      licenses: ["Apache 2.0"],
+      licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/samuelventura/modbus/"}
     ]
   end
