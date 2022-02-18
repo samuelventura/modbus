@@ -37,23 +37,24 @@ defmodule Modbus.Model do
     case check_request(state, {slave, type, address, count}) do
       true ->
         map = Map.fetch!(state, slave)
+        addr_end = address + count - 1
 
         list =
-          for point <- address..(address + count - 1) do
+          for point <- address..addr_end do
             Map.fetch!(map, {type, point})
           end
 
-        {state, list}
+        {:ok, state, list}
 
       false ->
-        {state, :error}
+        {:error, state}
     end
   end
 
   defp write(state, {slave, type, address, value}) do
     cmap = Map.fetch!(state, slave)
     nmap = Map.put(cmap, {type, address}, value)
-    {Map.put(state, slave, nmap), nil}
+    {:ok, Map.put(state, slave, nmap)}
   end
 
   defp writes(state, {slave, type, address, values}) do
@@ -65,7 +66,7 @@ defmodule Modbus.Model do
         {i + 1, Map.put(map, {type, i}, value)}
       end)
 
-    {Map.put(state, slave, nmap), nil}
+    {:ok, Map.put(state, slave, nmap)}
   end
 
   def check_request(state, {slave, type, addr, count}) do

@@ -1,0 +1,1 @@
+alias Modbus.Tcp.Master

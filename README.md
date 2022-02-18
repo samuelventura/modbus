@@ -44,7 +44,7 @@ Based on:
   #  p0 - m2.p0
   #  p1 - m2.p1
 
-  {:ok, pid} = Master.start_link([ip: {10,77,0,2}, port: 502])
+  {:ok, pid} = Master.start_link(ip: {10,77,0,10}, port: 502)
 
   #turn off m1.p0
   :ok = Master.exec(pid, {:fc, 1, 4, 0})
@@ -83,9 +83,9 @@ Based on:
 
   #start your slave with a shared model
   model = %{ 0x50=>%{ {:c, 0x5152}=>0 } }
-  {:ok, spid} = Slave.start_link([model: model])
+  {:ok, spid} = Slave.start_link(model: model)
   #get the assigned tcp port
-  {:ok, %{port: port}} = Slave.id(spid)
+  port = Slave.port(spid)
 
   #interact with it
   {:ok, mpid} = Master.start_link([ip: {127,0,0,1}, port: port])
@@ -106,6 +106,11 @@ Future
 
 - [ ] Improve documentation and samples
 - [ ] Improve error handling
+
+Version 0.3.8
+
+- [x] Shared and slave for testing purposes only
+- [x] Removed client (no clear api)
 
 Version 0.3.7
 

@@ -13,7 +13,7 @@ defmodule TestHelper do
   def pp1(cmd, req, res, val, model) do
     assert req == Request.pack(cmd)
     assert cmd == Request.parse(req)
-    assert {model, val} == Model.apply(model, cmd)
+    assert {:ok, model, val} == Model.apply(model, cmd)
     assert res == Response.pack(cmd, val)
     assert val == Response.parse(cmd, res)
     # length predition
@@ -35,7 +35,7 @@ defmodule TestHelper do
     assert byte_size(tcp_req) == Tcp.req_len(cmd)
     # master
     {:ok, slave_pid} = Slave.start_link(model: model)
-    {:ok, %{port: port}} = Slave.id(slave_pid)
+    port = Slave.port(slave_pid)
     {:ok, master_pid} = Master.start_link(port: port, ip: {127, 0, 0, 1})
 
     for _ <- 0..10 do
@@ -46,7 +46,7 @@ defmodule TestHelper do
   def pp2(cmd, req, res, model0, model1) do
     assert req == Request.pack(cmd)
     assert cmd == Request.parse(req)
-    assert {model1, nil} == Model.apply(model0, cmd)
+    assert {:ok, model1} == Model.apply(model0, cmd)
     assert res == Response.pack(cmd, nil)
     assert nil == Response.parse(cmd, res)
     # length predition
@@ -65,7 +65,7 @@ defmodule TestHelper do
     assert byte_size(tcp_res) == Tcp.res_len(cmd)
     # master
     {:ok, slave_pid} = Slave.start_link(model: model0)
-    {:ok, %{port: port}} = Slave.id(slave_pid)
+    port = Slave.port(slave_pid)
     {:ok, master_pid} = Master.start_link(port: port, ip: {127, 0, 0, 1})
 
     for _ <- 0..10 do

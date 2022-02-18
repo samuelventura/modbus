@@ -26,7 +26,7 @@ defmodule Modbus.Tcp.Master do
   #  p0 - m2.p0
   #  p1 - m2.p1
 
-  {:ok, pid} = Master.start_link([ip: {10,77,0,2}, port: 502])
+  {:ok, pid} = Master.start_link(ip: {10,77,0,10}, port: 502)
 
   #turn off m1.p0
   :ok = Master.exec(pid, {:fc, 1, 4, 0})
@@ -56,6 +56,7 @@ defmodule Modbus.Tcp.Master do
   [-5.0, +5.0] = Modbus.IEEE754.from_2n_regs(data, :be)
   ```
   """
+  use GenServer
   alias Modbus.Tcp
   @to 2000
 
@@ -76,36 +77,35 @@ defmodule Modbus.Tcp.Master do
   ## Example
 
   ```elixir
-  Modbus.Tcp.Master.start_link([ip: {10,77,0,2}, port: 502, timeout: 2000])
+  Modbus.Tcp.Master.new(ip: {10,77,0,10}, port: 502, timeout: 2000)
   ```
   """
 
-  def start_link(params, opts \\ []) do
-    Agent.start_link(fn -> init(params) end, opts)
+  def start_link(opts) do
+    ip = Keyword.fetch!(opts, :ip)
+    port = Keyword.fetch!(opts, :port)
+    timeout = Keyword.get(opts, :timeout, @to)
+    GenServer.start_link(__MODULE__, {ip, port, timeout})
   end
 
-  def child_spec(opts) do
-    %{
-      id: __MODULE__,
-      start: {__MODULE__, :start_link, [opts]},
-      type: :worker,
-      restart: :permanent,
-      shutdown: 500
-    }
+  def init({ip, port, timeout}) do
+    opts = [:binary, packet: :raw, active: false]
+    result = :gen_tcp.connect(ip, port, opts, timeout)
+
+    case result do
+      {:ok, socket} ->
+        {:ok, {socket, 0}}
+
+      {:error, reason} ->
+        {:stop, reason}
+    end
   end
 
   @doc """
   Stops the Server.
   """
   def stop(pid) do
-    Agent.stop(pid)
-  end
-
-  @doc """
-  Gets the state of the Server.
-  """
-  def state(pid) do
-    Agent.get(pid, fn state -> state end)
+    GenServer.stop(pid)
   end
 
   @doc """
@@ -125,43 +125,30 @@ defmodule Modbus.Tcp.Master do
   Returns `:ok` | `{:ok, [values]}`.
   """
   def exec(pid, cmd, timeout \\ @to) do
-    case state(pid) do
-      {:error, reason} ->
-        {:error, reason}
-
-      _ ->
-        Agent.get_and_update(pid, fn {socket, transid} ->
-          request = Tcp.pack_req(cmd, transid)
-          length = Tcp.res_len(cmd)
-          :gen_tcp.send(socket, request)
-
-          case :gen_tcp.recv(socket, length, timeout) do
-            {:ok, response} ->
-              values = Tcp.parse_res(cmd, response, transid)
-
-              case values do
-                nil -> {:ok, {socket, transid + 1}}
-                _ -> {{:ok, values}, {socket, transid + 1}}
-              end
-
-            {:error, reason} ->
-              {{:error, reason}, {socket, transid}}
-          end
-        end)
-    end
+    GenServer.call(pid, {:exec, cmd, timeout})
   end
 
-  # returns the state ()
-  defp init(params) do
-    ip = Keyword.fetch!(params, :ip)
-    port = Keyword.fetch!(params, :port)
-    timeout = Keyword.get(params, :timeout, @to)
+  def handle_call({:exec, cmd, timeout}, _from, {socket, transid}) do
+    request = Tcp.pack_req(cmd, transid)
+    length = Tcp.res_len(cmd)
 
-    case :gen_tcp.connect(ip, port, [:binary, packet: :raw, active: false], timeout) do
-      # state
-      {:ok, socket} -> {socket, 0}
-      # state
-      {:error, reason} -> {:error, reason}
+    case :gen_tcp.send(socket, request) do
+      {:error, reason} ->
+        {:stop, reason}
+
+      :ok ->
+        case :gen_tcp.recv(socket, length, timeout) do
+          {:ok, response} ->
+            values = Tcp.parse_res(cmd, response, transid)
+
+            case values do
+              nil -> {:reply, :ok, {socket, transid + 1}}
+              _ -> {:reply, {:ok, values}, {socket, transid + 1}}
+            end
+
+          {:error, reason} ->
+            {:stop, reason}
+        end
     end
   end
 end

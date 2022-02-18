@@ -10,7 +10,7 @@ defmodule ModbusTcpTest do
     model = %{0x50 => %{{:c, 0x5152} => 0}}
     {:ok, spid} = Slave.start_link(model: model)
     # get the assigned tcp port
-    {:ok, %{port: port}} = Slave.id(spid)
+    port = Slave.port(spid)
 
     # interact with it
     {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
