@@ -64,7 +64,7 @@ Based on:
   ...
   ```
 
-3. Connect the TCP master to real industrial Opto22 device:
+3. Connect the TCP master to a real industrial Opto22 device:
 
   ```elixir
   # run with: mix opto22
