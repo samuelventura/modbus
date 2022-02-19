@@ -98,6 +98,11 @@ Future
 - [ ] Improve error handling
 - [ ] TCP<->RTU translator
 
+Version 0.3.10
+
+- [x] Basic crash and socket testing
+- [x] Added echo server as testing helper
+
 Version 0.3.9
 
 - [x] Basic crash testing
