@@ -81,7 +81,7 @@ defmodule Modbus.Tcp.Master do
   end
 
   @doc """
-  Executes a Modbus TCP command.
+  Executes a Modbus command.
 
   `cmd` is one of:
 

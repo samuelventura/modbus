@@ -20,7 +20,29 @@ Based on:
   end
   ```
 
-2. Use as TCP master:
+2. Connect the TCP master to the testing TCP slave:
+
+  ```elixir
+  # run with: mix slave
+  alias Modbus.Tcp.Slave
+  alias Modbus.Tcp.Master
+
+  # start your slave with a shared model
+  model = %{0x50 => %{{:c, 0x5152} => 0}}
+  {:ok, spid} = Slave.start_link(model: model)
+  # get the assigned tcp port
+  port = Slave.port(spid)
+
+  # interact with it through the master
+  {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
+  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 0})
+  {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
+  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 1})
+  {:ok, [1]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
+  ...
+  ```
+
+3. Connect the TCP master to real industrial Opto22 device:
 
   ```elixir
   # run with: mix opto22
@@ -57,28 +79,6 @@ Based on:
   # write to the 'fuel display' (0 to 10,000)
   data = Modbus.IEEE754.to_2_regs(+5000.0, :be)
   :ok = Master.exec(pid, {:phr, 1, 16, data})
-  ```
-
-3. Play with TCP slave:
-
-  ```elixir
-  # run with: mix slave
-  alias Modbus.Tcp.Slave
-  alias Modbus.Tcp.Master
-
-  # start your slave with a shared model
-  model = %{0x50 => %{{:c, 0x5152} => 0}}
-  {:ok, spid} = Slave.start_link(model: model)
-  # get the assigned tcp port
-  port = Slave.port(spid)
-
-  # interact with it through the master
-  {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
-  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 0})
-  {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
-  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 1})
-  {:ok, [1]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
-  ...
   ```
 
 ## Endianess
