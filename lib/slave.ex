@@ -58,8 +58,8 @@ defmodule Modbus.Tcp.Slave do
         spawn(fn -> client(socket, shared) end)
         accept(listener, shared)
 
-      error ->
-        Process.exit(self(), error)
+      {:error, reason} ->
+        Process.exit(self(), reason)
     end
   end
 
@@ -84,8 +84,8 @@ defmodule Modbus.Tcp.Slave do
 
         client(socket, shared)
 
-      error ->
-        Process.exit(self(), error)
+      {:error, reason} ->
+        Process.exit(self(), reason)
     end
   end
 end
