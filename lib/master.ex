@@ -52,11 +52,11 @@ defmodule Modbus.Tcp.Master do
   Opens the connection.
 
   `opts` is a keyword list where:
-  `ip` is the internet address to connect to.
-  `port` is the tcp port number to connect to.
-  `timeout` is the connection timeout.
+  - `ip` is the internet address to connect to.
+  - `port` is the tcp port number to connect to.
+  - `timeout` is the optional connection timeout.
 
-  Returns `{:ok, ref}` | `{:error, reason}`.
+  Returns `{:ok, pid}` | `{:error, reason}`.
 
   ## Example
 
@@ -94,7 +94,7 @@ defmodule Modbus.Tcp.Master do
   - `{:fc, slave, address, values}` force multiple coils.
   - `{:phr, slave, address, values}` preset multiple holding registers.
 
-  Returns `:ok` | `{:ok, [values]}`.
+  Returns `:ok` | `{:ok, [values]}` | `{:error, reason}`.
   """
   def exec(pid, cmd, timeout \\ @to) when is_tuple(cmd) and is_integer(timeout) do
     GenServer.call(pid, {:exec, cmd, timeout})

@@ -12,7 +12,7 @@ defmodule Modbus.Tcp.Slave do
   end
 
   def init({ip, port, model}) do
-    {:ok, shared} = Shared.start_link(model: model)
+    {:ok, shared} = Shared.start_link(model)
     opts = [:binary, ip: ip, packet: :raw, active: false]
     owner = self()
 
