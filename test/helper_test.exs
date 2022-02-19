@@ -1,4 +1,4 @@
-defmodule HelperTest do
+defmodule Modbus.HelperTest do
   use ExUnit.Case
   alias Modbus.Helper
 

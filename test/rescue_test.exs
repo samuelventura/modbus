@@ -1,4 +1,4 @@
-defmodule RescueTest do
+defmodule Modbus.RescueTest do
   use ExUnit.Case
   @state %{0x50 => %{{:c, 0x5152} => 0}}
 

@@ -1,4 +1,4 @@
-defmodule SocketTest do
+defmodule Modbus.SocketTest do
   use ExUnit.Case
 
   # these tests and the echo server is mostly to

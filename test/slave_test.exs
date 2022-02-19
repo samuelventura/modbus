@@ -1,4 +1,4 @@
-defmodule SlaveTest do
+defmodule Modbus.SlaveTest do
   use ExUnit.Case
 
   test "test slave and master interaction" do

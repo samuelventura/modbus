@@ -1,4 +1,4 @@
-defmodule RequestTest do
+defmodule Modbus.RequestTest do
   use ExUnit.Case
   alias Modbus.Request
 

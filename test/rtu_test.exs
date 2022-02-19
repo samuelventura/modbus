@@ -1,4 +1,4 @@
-defmodule RtuTest do
+defmodule Modbus.RtuTest do
   use ExUnit.Case
   alias Modbus.Rtu
 

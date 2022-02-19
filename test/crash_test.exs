@@ -1,4 +1,4 @@
-defmodule CrashTest do
+defmodule Modbus.CrashTest do
   use ExUnit.Case
 
   test "master exists on non normal process exit" do

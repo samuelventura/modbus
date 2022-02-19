@@ -1,4 +1,4 @@
-defmodule FloatTest do
+defmodule Modbus.FloatTest do
   use ExUnit.Case
   alias Modbus.IEEE754
 

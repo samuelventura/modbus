@@ -1,4 +1,4 @@
-defmodule F01Test do
+defmodule Modbus.F01Test do
   use ExUnit.Case
   import TestHelper
 

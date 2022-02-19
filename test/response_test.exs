@@ -1,4 +1,4 @@
-defmodule ResponseTest do
+defmodule Modbus.ResponseTest do
   use ExUnit.Case
   alias Modbus.Response
 

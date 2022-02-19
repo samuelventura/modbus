@@ -1,4 +1,4 @@
-defmodule TcpTest do
+defmodule Modbus.TcpTest do
   use ExUnit.Case
   alias Modbus.Tcp
 
