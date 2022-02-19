@@ -36,7 +36,7 @@ defmodule TestHelper do
     # master
     {:ok, slave_pid} = Slave.start_link(model: model)
     port = Slave.port(slave_pid)
-    {:ok, master_pid} = Master.connect(port: port, ip: {127, 0, 0, 1})
+    {:ok, master_pid} = Master.start_link(port: port, ip: {127, 0, 0, 1})
 
     for _ <- 0..10 do
       assert {:ok, val} == Master.exec(master_pid, cmd)
@@ -66,7 +66,7 @@ defmodule TestHelper do
     # master
     {:ok, slave_pid} = Slave.start_link(model: model0)
     port = Slave.port(slave_pid)
-    {:ok, master_pid} = Master.connect(port: port, ip: {127, 0, 0, 1})
+    {:ok, master_pid} = Master.start_link(port: port, ip: {127, 0, 0, 1})
 
     for _ <- 0..10 do
       assert :ok == Master.exec(master_pid, cmd)

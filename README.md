@@ -31,7 +31,7 @@ Based on:
   # digital points increment address by 4 per module and by 1 per point
   # analog points increment address by 8 per module and by 2 per point
 
-  {:ok, pid} = Master.connect(ip: {10, 77, 0, 10}, port: 502)
+  {:ok, pid} = Master.start_link(ip: {10, 77, 0, 10}, port: 502)
 
   # turn on 'alarm'
   :ok = Master.exec(pid, {:fc, 1, 4, 1})
@@ -73,7 +73,7 @@ Based on:
   port = Slave.port(spid)
 
   # interact with it through the master
-  {:ok, mpid} = Master.connect(ip: {127, 0, 0, 1}, port: port)
+  {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
   {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
   ...
   ```

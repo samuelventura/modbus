@@ -15,17 +15,17 @@ defmodule AutoCloseTest do
 
     pid =
       spawn(fn ->
-        {:ok, mpid} = Master.connect(ip: {127, 0, 0, 1}, port: port)
-        IO.inspect({mpid, Process.info(self())})
-        send(self, mpid)
+        {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
+        socket = GenServer.call(mpid, :socket)
+        send(self, {mpid, socket})
+        # crash required for linked process to exit as well
+        Process.exit(self(), :crash)
       end)
 
     ref = :erlang.monitor(:process, pid)
-    assert_receive mpid, 400
-    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 800
-    :timer.sleep(200)
-    assert {:error, :closed} == :gen_tcp.recv(mpid.socket, 0, 0)
-    0 = Agent.get(mpid.agent, fn tid -> tid end)
-    assert false == Process.alive?(mpid.agent)
+    assert_receive {mpid, socket}, 400
+    assert_receive {:DOWN, ^ref, :process, ^pid, :crash}, 800
+    assert {:error, :closed} == :gen_tcp.recv(socket, 0, 0)
+    assert false == Process.alive?(mpid)
   end
 end

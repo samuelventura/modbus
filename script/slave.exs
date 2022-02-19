@@ -9,5 +9,5 @@ model = %{0x50 => %{{:c, 0x5152} => 0}}
 port = Slave.port(spid)
 
 # interact with it through the master
-{:ok, mpid} = Master.connect(ip: {127, 0, 0, 1}, port: port)
+{:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
 {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})

@@ -13,7 +13,7 @@ defmodule Modbus.Tcp.Master do
   # digital points increment address by 4 per module and by 1 per point
   # analog points increment address by 8 per module and by 2 per point
 
-  {:ok, pid} = Master.connect(ip: {10, 77, 0, 10}, port: 502)
+  {:ok, pid} = Master.start_link(ip: {10, 77, 0, 10}, port: 502)
 
   # turn on 'alarm'
   :ok = Master.exec(pid, {:fc, 1, 4, 1})
@@ -61,34 +61,23 @@ defmodule Modbus.Tcp.Master do
   ## Example
 
   ```elixir
-  Modbus.Tcp.Master.connect(ip: {10,77,0,10}, port: 502, timeout: 2000)
+  Modbus.Tcp.Master.start_link(ip: {10,77,0,10}, port: 502, timeout: 2000)
   ```
   """
 
-  def connect(opts) do
+  def start_link(opts) do
     ip = Keyword.fetch!(opts, :ip)
     port = Keyword.fetch!(opts, :port)
     timeout = Keyword.get(opts, :timeout, @to)
-    opts = [:binary, packet: :raw, active: false]
-
-    case :gen_tcp.connect(ip, port, opts, timeout) do
-      {:ok, sid} ->
-        {:ok, aid} = Agent.start_link(fn -> 0 end)
-        state = %{socket: sid, agent: aid}
-        {:ok, state}
-
-      error ->
-        error
-    end
+    init = %{ip: ip, port: port, timeout: timeout}
+    GenServer.start_link(__MODULE__.Server, init)
   end
 
   @doc """
   Closes the connection.
   """
-  def close(ref) do
-    %{socket: sid, agent: aid} = ref
-    :gen_tcp.close(sid)
-    Agent.stop(aid)
+  def stop(pid) do
+    GenServer.stop(pid)
   end
 
   @doc """
@@ -107,47 +96,76 @@ defmodule Modbus.Tcp.Master do
 
   Returns `:ok` | `{:ok, [values]}`.
   """
-  def exec(ref, cmd, timeout \\ @to) do
-    %{socket: sid, agent: aid} = ref
-    transid = Agent.get_and_update(aid, fn tid -> {tid, tid + 1} end)
-
-    case request(cmd, transid) do
-      {:ok, request, length} ->
-        # clear input buffer
-        :gen_tcp.recv(sid, 0, 0)
-
-        case :gen_tcp.send(sid, request) do
-          :ok ->
-            case :gen_tcp.recv(sid, length, timeout) do
-              {:ok, response} ->
-                values = Tcp.parse_res(cmd, response, transid)
-
-                case values do
-                  nil -> :ok
-                  _ -> {:ok, values}
-                end
-
-              error ->
-                error
-            end
-
-          error ->
-            error
-        end
-
-      error ->
-        error
-    end
+  def exec(pid, cmd, timeout \\ @to) when is_tuple(cmd) and is_integer(timeout) do
+    GenServer.call(pid, {:exec, cmd, timeout})
   end
 
-  defp request(cmd, transid) do
-    try do
-      request = Tcp.pack_req(cmd, transid)
-      length = Tcp.res_len(cmd)
-      {:ok, request, length}
-    rescue
-      _ ->
-        {:error, {:invalid, cmd}}
+  defmodule Server do
+    use GenServer
+
+    def init(init) do
+      %{ip: ip, port: port, timeout: timeout} = init
+      opts = [:binary, packet: :raw, active: false]
+
+      case :gen_tcp.connect(ip, port, opts, timeout) do
+        {:ok, sid} ->
+          state = %{socket: sid, transid: 0}
+          {:ok, state}
+
+        {:error, reason} ->
+          {:stop, reason}
+      end
+    end
+
+    def handle_call(:socket, _from, state) do
+      {:reply, state.socket, state}
+    end
+
+    def handle_call({:exec, cmd, timeout}, _from, state) do
+      %{socket: socket, transid: transid} = state
+      resp = exec(socket, cmd, transid, timeout)
+      {:reply, resp, Map.put(state, :transid, transid + 1)}
+    end
+
+    defp exec(socket, cmd, transid, timeout) do
+      case request(cmd, transid) do
+        {:ok, request, length} ->
+          # clear input buffer
+          :gen_tcp.recv(socket, 0, 0)
+
+          case :gen_tcp.send(socket, request) do
+            :ok ->
+              case :gen_tcp.recv(socket, length, timeout) do
+                {:ok, response} ->
+                  values = Tcp.parse_res(cmd, response, transid)
+
+                  case values do
+                    nil -> :ok
+                    _ -> {:ok, values}
+                  end
+
+                error ->
+                  error
+              end
+
+            error ->
+              error
+          end
+
+        error ->
+          error
+      end
+    end
+
+    defp request(cmd, transid) do
+      try do
+        request = Tcp.pack_req(cmd, transid)
+        length = Tcp.res_len(cmd)
+        {:ok, request, length}
+      rescue
+        _ ->
+          {:error, {:invalid, cmd}}
+      end
     end
   end
 end

@@ -13,7 +13,7 @@ defmodule SlaveTest do
     port = Slave.port(spid)
 
     # interact with it
-    {:ok, mpid} = Master.connect(ip: {127, 0, 0, 1}, port: port)
+    {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
     assert {:ok, [0]} == Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
   end
 end

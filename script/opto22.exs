@@ -6,7 +6,7 @@ alias Modbus.Tcp.Master
 # digital points increment address by 4 per module and by 1 per point
 # analog points increment address by 8 per module and by 2 per point
 
-{:ok, pid} = Master.connect(ip: {10, 77, 0, 10}, port: 502)
+{:ok, pid} = Master.start_link(ip: {10, 77, 0, 10}, port: 502)
 
 # turn on 'alarm'
 :ok = Master.exec(pid, {:fc, 1, 4, 1})
