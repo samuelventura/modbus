@@ -101,6 +101,7 @@ defmodule Modbus.Tcp.Master do
   end
 
   defmodule Server do
+    @moduledoc false
     use GenServer
 
     def init(init) do

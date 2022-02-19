@@ -16,7 +16,7 @@ Based on:
 
   ```elixir
   def deps do
-    [{:modbus, "~> 0.3.8"}]
+    [{:modbus, "~> 0.3.9"}]
   end
   ```
 
@@ -59,7 +59,7 @@ Based on:
   :ok = Master.exec(pid, {:phr, 1, 16, data})
   ```
 
-3. Use as TCP slave:
+3. Play with TCP slave:
 
   ```elixir
   # run with: mix slave

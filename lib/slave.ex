@@ -14,11 +14,10 @@ defmodule Modbus.Tcp.Slave do
   def init({ip, port, model}) do
     {:ok, shared} = Shared.start_link(model)
     opts = [:binary, ip: ip, packet: :raw, active: false]
-    owner = self()
 
     case :gen_tcp.listen(port, opts) do
       {:ok, listener} ->
-        spawn_link(fn -> accept(owner, listener, shared) end)
+        spawn_link(fn -> accept(listener, shared) end)
         {:ok, {ip, port}} = :inet.sockname(listener)
 
         {:ok,
@@ -34,7 +33,14 @@ defmodule Modbus.Tcp.Slave do
     end
   end
 
+  def terminate(reason, %{shared: shared}) do
+    Agent.stop(shared, reason)
+  end
+
   def stop(pid) do
+    # listener automatic close should
+    # close the accepting process which
+    # should close all client sockets
     GenServer.stop(pid)
   end
 
@@ -46,32 +52,18 @@ defmodule Modbus.Tcp.Slave do
     {:reply, state.port, state}
   end
 
-  def handle_info({:closed, reason}, state) do
-    {:stop, reason, state}
-  end
-
-  defp accept(owner, listener, shared) do
+  defp accept(listener, shared) do
     case :gen_tcp.accept(listener) do
       {:ok, socket} ->
-        pid = start_child(socket, shared)
-        :ok = :gen_tcp.controlling_process(socket, pid)
-        send(pid, :go)
-        accept(owner, listener, shared)
+        spawn(fn -> client(socket, shared) end)
+        accept(listener, shared)
 
-      {:error, reason} ->
-        send(owner, {:closed, reason})
+      error ->
+        Process.exit(self(), error)
     end
   end
 
-  def start_child(socket, shared) do
-    spawn(fn ->
-      receive do
-        :go -> loop(socket, shared)
-      end
-    end)
-  end
-
-  defp loop(socket, shared) do
+  def client(socket, shared) do
     case :gen_tcp.recv(socket, 0) do
       {:ok, data} ->
         {cmd, transid} = Tcp.parse_req(data)
@@ -80,20 +72,20 @@ defmodule Modbus.Tcp.Slave do
         case result do
           :ok ->
             resp = Tcp.pack_res(cmd, nil, transid)
-            :ok = :gen_tcp.send(socket, resp)
-            loop(socket, shared)
+            :gen_tcp.send(socket, resp)
 
           {:ok, values} ->
             resp = Tcp.pack_res(cmd, values, transid)
-            :ok = :gen_tcp.send(socket, resp)
-            loop(socket, shared)
+            :gen_tcp.send(socket, resp)
 
-          other ->
-            other
+          _ ->
+            :ignore
         end
 
-      other ->
-        other
+        client(socket, shared)
+
+      error ->
+        Process.exit(self(), error)
     end
   end
 end
