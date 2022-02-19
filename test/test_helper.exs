@@ -16,7 +16,7 @@ defmodule TestHelper do
     assert {:ok, model, val} == Model.apply(model, cmd)
     assert res == Response.pack(cmd, val)
     assert val == Response.parse(cmd, res)
-    # length predition
+    # length prediction
     assert byte_size(res) == Response.length(cmd)
     assert byte_size(req) == Request.length(cmd)
     # rtu
@@ -36,7 +36,7 @@ defmodule TestHelper do
     # master
     {:ok, slave_pid} = Slave.start_link(model: model)
     port = Slave.port(slave_pid)
-    {:ok, master_pid} = Master.start_link(port: port, ip: {127, 0, 0, 1})
+    {:ok, master_pid} = Master.connect(port: port, ip: {127, 0, 0, 1})
 
     for _ <- 0..10 do
       assert {:ok, val} == Master.exec(master_pid, cmd)
@@ -49,7 +49,7 @@ defmodule TestHelper do
     assert {:ok, model1} == Model.apply(model0, cmd)
     assert res == Response.pack(cmd, nil)
     assert nil == Response.parse(cmd, res)
-    # length predition
+    # length prediction
     assert byte_size(res) == Response.length(cmd)
     # rtu
     rtu_req = Rtu.pack_req(cmd)
@@ -66,7 +66,7 @@ defmodule TestHelper do
     # master
     {:ok, slave_pid} = Slave.start_link(model: model0)
     port = Slave.port(slave_pid)
-    {:ok, master_pid} = Master.start_link(port: port, ip: {127, 0, 0, 1})
+    {:ok, master_pid} = Master.connect(port: port, ip: {127, 0, 0, 1})
 
     for _ <- 0..10 do
       assert :ok == Master.exec(master_pid, cmd)

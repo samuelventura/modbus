@@ -1,4 +1,4 @@
-defmodule ModbusTcpTest do
+defmodule SlaveTest do
   use ExUnit.Case
 
   test "test slave and master interaction" do
@@ -13,7 +13,7 @@ defmodule ModbusTcpTest do
     port = Slave.port(spid)
 
     # interact with it
-    {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
+    {:ok, mpid} = Master.connect(ip: {127, 0, 0, 1}, port: port)
     assert {:ok, [0]} == Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
   end
 end

@@ -8,6 +8,6 @@ model = %{0x50 => %{{:c, 0x5152} => 0}}
 # get the assigned tcp port
 port = Slave.port(spid)
 
-# interact with it
-{:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
+# interact with it through the master
+{:ok, mpid} = Master.connect(ip: {127, 0, 0, 1}, port: port)
 {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})

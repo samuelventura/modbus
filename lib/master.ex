@@ -5,58 +5,42 @@ defmodule Modbus.Tcp.Master do
   ## Example
 
   ```elixir
-  #run with: mix opto22
+  # run with: mix opto22
   alias Modbus.Tcp.Master
 
-  # opto22 rack configured as follows
-  # m0 - 4p digital input
-  #  p0 - 24V
-  #  p1 - 0V
-  #  p2 - m1.p2
-  #  p3 - m1.p3
-  # m1 - 4p digital output
-  #  p0 - NC
-  #  p1 - NC
-  #  p2 - m0.p2
-  #  p3 - m0.p3
-  # m2 - 2p analog input (-10V to +10V)
-  #  p0 - m3.p0
-  #  p1 - m3.p1
-  # m3 - 2p analog output (-10V to +10V)
-  #  p0 - m2.p0
-  #  p1 - m2.p1
+  # opto22 learning center configured with script/opto22.otg
+  # the otg is for an R2 but seems to work for R1, EB1, and EB2
+  # digital points increment address by 4 per module and by 1 per point
+  # analog points increment address by 8 per module and by 2 per point
 
-  {:ok, pid} = Master.start_link(ip: {10,77,0,10}, port: 502)
+  {:ok, pid} = Master.connect(ip: {10, 77, 0, 10}, port: 502)
 
-  #turn off m1.p0
-  :ok = Master.exec(pid, {:fc, 1, 4, 0})
-  #turn on m1.p1
+  # turn on 'alarm'
+  :ok = Master.exec(pid, {:fc, 1, 4, 1})
+  # turn on 'outside light'
   :ok = Master.exec(pid, {:fc, 1, 5, 1})
-  #alternate m1.p2 and m1.p3
-  :ok = Master.exec(pid, {:fc, 1, 6, [1, 0]})
+  # turn on 'inside light'
+  :ok = Master.exec(pid, {:fc, 1, 6, 1})
+  # turn on 'freezer door status'
+  :ok = Master.exec(pid, {:fc, 1, 7, 1})
 
-  #https://www.h-schmidt.net/FloatConverter/IEEE754.html
-  #write -5V (IEEE 754 float) to m3.p0
-  #<<-5::float-32>> -> <<192, 160, 0, 0>>
-  :ok = Master.exec(pid, {:phr, 1, 24, [0xc0a0, 0x0000]})
-  :ok = Master.exec(pid, {:phr, 1, 24, Modbus.IEEE754.to_2_regs(-5.0, :be)})
-  #write +5V (IEEE 754 float) to m3.p1
-  #<<+5::float-32>> -> <<64, 160, 0, 0>>
-  :ok = Master.exec(pid, {:phr, 1, 26, [0x40a0, 0x0000]})
-  :ok = Master.exec(pid, {:phr, 1, 26, Modbus.IEEE754.to_2_regs(+5.0, :be)})
+  :timer.sleep(400)
 
-  :timer.sleep(20) #outputs settle delay
+  # turn off all digital outputs
+  :ok = Master.exec(pid, {:fc, 1, 4, [0, 0, 0, 0]})
 
-  #read previous coils as inputs
-  {:ok, [0, 1, 1, 0]} = Master.exec(pid, {:ri, 1, 4, 4})
+  # read the 'emergency' switch
+  {:ok, [0]} = Master.exec(pid, {:rc, 1, 8, 1})
 
-  #read previous analog channels as input registers
-  {:ok, [0xc0a0, 0x0000, 0x40a0, 0x0000]} = Master.exec(pid, {:rir, 1, 24, 4})
-  {:ok, data} = Master.exec(pid, {:rir, 1, 24, 4})
-  [-5.0, +5.0] = Modbus.IEEE754.from_2n_regs(data, :be)
+  # read the 'fuel level' knob (0 to 10,000)
+  {:ok, data} = Master.exec(pid, {:rir, 1, 32, 2})
+  [_] = Modbus.IEEE754.from_2n_regs(data, :be)
+
+  # write to the 'fuel display' (0 to 10,000)
+  data = Modbus.IEEE754.to_2_regs(+5000.0, :be)
+  :ok = Master.exec(pid, {:phr, 1, 16, data})
   ```
   """
-  use GenServer
   alias Modbus.Tcp
   @to 2000
 
@@ -65,47 +49,46 @@ defmodule Modbus.Tcp.Master do
   ##########################################
 
   @doc """
-  Starts the Server.
+  Opens the connection.
 
-  `state` is a keyword list where:
+  `opts` is a keyword list where:
   `ip` is the internet address to connect to.
   `port` is the tcp port number to connect to.
   `timeout` is the connection timeout.
 
-  Returns `{:ok, pid}`.
+  Returns `{:ok, ref}` | `{:error, reason}`.
 
   ## Example
 
   ```elixir
-  Modbus.Tcp.Master.new(ip: {10,77,0,10}, port: 502, timeout: 2000)
+  Modbus.Tcp.Master.connect(ip: {10,77,0,10}, port: 502, timeout: 2000)
   ```
   """
 
-  def start_link(opts) do
+  def connect(opts) do
     ip = Keyword.fetch!(opts, :ip)
     port = Keyword.fetch!(opts, :port)
     timeout = Keyword.get(opts, :timeout, @to)
-    GenServer.start_link(__MODULE__, {ip, port, timeout})
-  end
-
-  def init({ip, port, timeout}) do
     opts = [:binary, packet: :raw, active: false]
-    result = :gen_tcp.connect(ip, port, opts, timeout)
 
-    case result do
-      {:ok, socket} ->
-        {:ok, {socket, 0}}
+    case :gen_tcp.connect(ip, port, opts, timeout) do
+      {:ok, sid} ->
+        {:ok, aid} = Agent.start_link(fn -> 0 end)
+        state = %{socket: sid, agent: aid}
+        {:ok, state}
 
-      {:error, reason} ->
-        {:stop, reason}
+      error ->
+        error
     end
   end
 
   @doc """
-  Stops the Server.
+  Closes the connection.
   """
-  def stop(pid) do
-    GenServer.stop(pid)
+  def close(ref) do
+    %{socket: sid, agent: aid} = ref
+    :gen_tcp.close(sid)
+    Agent.stop(aid)
   end
 
   @doc """
@@ -124,31 +107,47 @@ defmodule Modbus.Tcp.Master do
 
   Returns `:ok` | `{:ok, [values]}`.
   """
-  def exec(pid, cmd, timeout \\ @to) do
-    GenServer.call(pid, {:exec, cmd, timeout})
-  end
+  def exec(ref, cmd, timeout \\ @to) do
+    %{socket: sid, agent: aid} = ref
+    transid = Agent.get_and_update(aid, fn tid -> {tid, tid + 1} end)
 
-  def handle_call({:exec, cmd, timeout}, _from, {socket, transid}) do
-    request = Tcp.pack_req(cmd, transid)
-    length = Tcp.res_len(cmd)
+    case request(cmd, transid) do
+      {:ok, request, length} ->
+        # clear input buffer
+        :gen_tcp.recv(sid, 0, 0)
 
-    case :gen_tcp.send(socket, request) do
-      {:error, reason} ->
-        {:stop, reason}
+        case :gen_tcp.send(sid, request) do
+          :ok ->
+            case :gen_tcp.recv(sid, length, timeout) do
+              {:ok, response} ->
+                values = Tcp.parse_res(cmd, response, transid)
 
-      :ok ->
-        case :gen_tcp.recv(socket, length, timeout) do
-          {:ok, response} ->
-            values = Tcp.parse_res(cmd, response, transid)
+                case values do
+                  nil -> :ok
+                  _ -> {:ok, values}
+                end
 
-            case values do
-              nil -> {:reply, :ok, {socket, transid + 1}}
-              _ -> {:reply, {:ok, values}, {socket, transid + 1}}
+              error ->
+                error
             end
 
-          {:error, reason} ->
-            {:stop, reason}
+          error ->
+            error
         end
+
+      error ->
+        error
+    end
+  end
+
+  defp request(cmd, transid) do
+    try do
+      request = Tcp.pack_req(cmd, transid)
+      length = Tcp.res_len(cmd)
+      {:ok, request, length}
+    rescue
+      _ ->
+        {:error, {:invalid, cmd}}
     end
   end
 end

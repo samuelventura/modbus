@@ -23,72 +23,57 @@ Based on:
 2. Use as TCP master:
 
   ```elixir
-  #run with: mix opto22
+  # run with: mix opto22
   alias Modbus.Tcp.Master
 
-  # opto22 rack configured as follows
-  # m0 - 4p digital input
-  #  p0 - 24V
-  #  p1 - 0V
-  #  p2 - m1.p2
-  #  p3 - m1.p3
-  # m1 - 4p digital output
-  #  p0 - NC
-  #  p1 - NC
-  #  p2 - m0.p2
-  #  p3 - m0.p3
-  # m2 - 2p analog input (-10V to +10V)
-  #  p0 - m3.p0
-  #  p1 - m3.p1
-  # m3 - 2p analog output (-10V to +10V)
-  #  p0 - m2.p0
-  #  p1 - m2.p1
+  # opto22 learning center configured with script/opto22.otg
+  # the otg is for an R2 but seems to work for R1, EB1, and EB2
+  # digital points increment address by 4 per module and by 1 per point
+  # analog points increment address by 8 per module and by 2 per point
 
-  {:ok, pid} = Master.start_link(ip: {10,77,0,10}, port: 502)
+  {:ok, pid} = Master.connect(ip: {10, 77, 0, 10}, port: 502)
 
-  #turn off m1.p0
-  :ok = Master.exec(pid, {:fc, 1, 4, 0})
-  #turn on m1.p1
+  # turn on 'alarm'
+  :ok = Master.exec(pid, {:fc, 1, 4, 1})
+  # turn on 'outside light'
   :ok = Master.exec(pid, {:fc, 1, 5, 1})
-  #alternate m1.p2 and m1.p3
-  :ok = Master.exec(pid, {:fc, 1, 6, [1, 0]})
+  # turn on 'inside light'
+  :ok = Master.exec(pid, {:fc, 1, 6, 1})
+  # turn on 'freezer door status'
+  :ok = Master.exec(pid, {:fc, 1, 7, 1})
 
-  #https://www.h-schmidt.net/FloatConverter/IEEE754.html
-  #write -5V (IEEE 754 float) to m3.p0
-  #<<-5::float-32>> -> <<192, 160, 0, 0>>
-  :ok = Master.exec(pid, {:phr, 1, 24, [0xc0a0, 0x0000]})
-  :ok = Master.exec(pid, {:phr, 1, 24, Modbus.IEEE754.to_2_regs(-5.0, :be)})
-  #write +5V (IEEE 754 float) to m3.p1
-  #<<+5::float-32>> -> <<64, 160, 0, 0>>
-  :ok = Master.exec(pid, {:phr, 1, 26, [0x40a0, 0x0000]})
-  :ok = Master.exec(pid, {:phr, 1, 26, Modbus.IEEE754.to_2_regs(+5.0, :be)})
+  :timer.sleep(400)
 
-  :timer.sleep(20) #outputs settle delay
+  # turn off all digital outputs
+  :ok = Master.exec(pid, {:fc, 1, 4, [0, 0, 0, 0]})
 
-  #read previous coils as inputs
-  {:ok, [0, 1, 1, 0]} = Master.exec(pid, {:ri, 1, 4, 4})
+  # read the 'emergency' switch
+  {:ok, [0]} = Master.exec(pid, {:rc, 1, 8, 1})
 
-  #read previous analog channels as input registers
-  {:ok, [0xc0a0, 0x0000, 0x40a0, 0x0000]} = Master.exec(pid, {:rir, 1, 24, 4})
-  {:ok, data} = Master.exec(pid, {:rir, 1, 24, 4})
-  [-5.0, +5.0] = Modbus.IEEE754.from_2n_regs(data, :be)
+  # read the 'fuel level' knob (0 to 10,000)
+  {:ok, data} = Master.exec(pid, {:rir, 1, 32, 2})
+  [_] = Modbus.IEEE754.from_2n_regs(data, :be)
+
+  # write to the 'fuel display' (0 to 10,000)
+  data = Modbus.IEEE754.to_2_regs(+5000.0, :be)
+  :ok = Master.exec(pid, {:phr, 1, 16, data})
   ```
 
 3. Use as TCP slave:
 
   ```elixir
-  #run with: mix slave
+  # run with: mix slave
   alias Modbus.Tcp.Slave
   alias Modbus.Tcp.Master
 
-  #start your slave with a shared model
-  model = %{ 0x50=>%{ {:c, 0x5152}=>0 } }
+  # start your slave with a shared model
+  model = %{0x50 => %{{:c, 0x5152} => 0}}
   {:ok, spid} = Slave.start_link(model: model)
-  #get the assigned tcp port
+  # get the assigned tcp port
   port = Slave.port(spid)
 
-  #interact with it
-  {:ok, mpid} = Master.start_link([ip: {127,0,0,1}, port: port])
+  # interact with it through the master
+  {:ok, mpid} = Master.connect(ip: {127, 0, 0, 1}, port: port)
   {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
   ...
   ```
