@@ -1,6 +1,6 @@
 # modbus
 
-Modbus library with TCP Master & Slave implementation.
+Modbus library with TCP Master & Slave.
 
 For Serial RTU see [baud](https://github.com/samuelventura/baud).
 
@@ -74,7 +74,10 @@ Based on:
 
   # interact with it through the master
   {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
+  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 0})
   {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
+  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 1})
+  {:ok, [1]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
   ...
   ```
 
@@ -89,8 +92,16 @@ Based on:
 
 Future
 
+- [ ] Transport behaviour for serial and socket
+- [ ] Protocol behaviour for TCP, RTU, and ASCII
 - [ ] Improve documentation and samples
 - [ ] Improve error handling
+- [ ] TCP<->RTU translator
+
+Version 0.3.9
+
+- [x] Basic crash testing
+- [x] Resilient master, slave, and shared model
 
 Version 0.3.8
 

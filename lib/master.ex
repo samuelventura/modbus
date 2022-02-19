@@ -118,10 +118,6 @@ defmodule Modbus.Tcp.Master do
       end
     end
 
-    def handle_call(:socket, _from, state) do
-      {:reply, state.socket, state}
-    end
-
     def handle_call({:exec, cmd, timeout}, _from, state) do
       %{socket: socket, transid: transid} = state
       resp = exec(socket, cmd, transid, timeout)

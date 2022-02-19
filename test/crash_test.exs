@@ -1,7 +1,7 @@
-defmodule AutoCloseTest do
+defmodule CrashTest do
   use ExUnit.Case
 
-  test "test slave and master interaction" do
+  test "master exists on non normal process exit" do
     # run with: mix slave
     alias Modbus.Tcp.Slave
     alias Modbus.Tcp.Master
@@ -16,16 +16,20 @@ defmodule AutoCloseTest do
     pid =
       spawn(fn ->
         {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
-        socket = GenServer.call(mpid, :socket)
-        send(self, {mpid, socket})
-        # crash required for linked process to exit as well
-        Process.exit(self(), :crash)
+        send(self, mpid)
+
+        receive do
+          reason -> Process.exit(self(), reason)
+        end
       end)
 
+    # sockets have been tested separately to
+    # auto close even on normal process exit
     ref = :erlang.monitor(:process, pid)
-    assert_receive {mpid, socket}, 400
-    assert_receive {:DOWN, ^ref, :process, ^pid, :crash}, 800
-    assert {:error, :closed} == :gen_tcp.recv(socket, 0, 0)
+    assert_receive mpid, 400
+    send(pid, :crash)
+    assert_receive {:DOWN, ^ref, :process, ^pid, :crash}, 400
+    # crash required for linked process to exit
     assert false == Process.alive?(mpid)
   end
 end

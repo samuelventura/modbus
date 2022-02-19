@@ -10,4 +10,7 @@ port = Slave.port(spid)
 
 # interact with it through the master
 {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
+:ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 0})
 {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
+:ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 1})
+{:ok, [1]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
