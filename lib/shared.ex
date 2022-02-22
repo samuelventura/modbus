@@ -2,8 +2,8 @@ defmodule Modbus.Model.Shared do
   @moduledoc false
   alias Modbus.Model
 
-  def start_link(params, opts \\ []) do
-    Agent.start_link(fn -> init(params) end, opts)
+  def start_link(model) do
+    Agent.start_link(fn -> model end)
   end
 
   def stop(pid) do
@@ -16,17 +16,20 @@ defmodule Modbus.Model.Shared do
 
   def apply(pid, cmd) do
     Agent.get_and_update(pid, fn model ->
-      case Model.apply(model, cmd) do
-        {new, :error} ->
-          {:error,new}
-        {new, values} ->
-          {{:ok, values}, new}
+      try do
+        case Model.apply(model, cmd) do
+          {:ok, nmodel, values} ->
+            {{:ok, values}, nmodel}
+
+          {:ok, nmodel} ->
+            {:ok, nmodel}
+
+          {:error, nmodel} ->
+            {{:error, {:invalid, cmd}}, nmodel}
+        end
+      rescue
+        _ -> {{:error, {:invalid, cmd}}, model}
       end
-
     end)
-  end
-
-  defp init(params) do
-    Keyword.fetch!(params, :model)
   end
 end

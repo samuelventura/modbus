@@ -1,111 +1,91 @@
 defmodule Modbus.Tcp.Slave do
-  defmodule Child do
-    require Logger
-    alias Modbus.Model.Shared
-    alias Modbus.Tcp
+  use GenServer
+  @moduledoc false
+  alias Modbus.Model.Shared
+  alias Modbus.Tcp
 
-    def child_spec(args) do
-      %{
-        id: __MODULE__,
-        start: {__MODULE__, :start_child, args},
-        restart: :temporary
-      }
-    end
+  def start_link(opts) do
+    ip = Keyword.get(opts, :ip, {127, 0, 0, 1})
+    port = Keyword.get(opts, :port, 0)
+    model = Keyword.fetch!(opts, :model)
+    GenServer.start_link(__MODULE__, {ip, port, model})
+  end
 
-    def start_child(socket, shared) do
-      {:ok, spawn_link(fn ->
-        receive do
-          :go ->
-            loop(socket, shared)
-        end
-      end)}
-    end
+  def init({ip, port, model}) do
+    {:ok, shared} = Shared.start_link(model)
+    opts = [:binary, ip: ip, packet: :raw, active: false]
 
-    defp loop(socket, shared) do
-      case :gen_tcp.recv(socket, 0) do
-        {:ok, data} ->
-          {cmd, transid} = Tcp.parse_req(data)
-          Logger.info(inspect({cmd, transid}))
-          case Shared.apply(shared, cmd) do
-            {:ok, values} ->
-              Logger.info("msg send")
-              resp = Tcp.pack_res(cmd, values, transid)
-              :ok = :gen_tcp.send(socket, resp)
-            :error ->
-              Logger.info("an error has occurred")
-          end
-          loop(socket, shared)
-        {:error, reason} ->
-        #agregar shared
-          Logger.info("Error R: #{reason}")
-        #model = Shared.state(shared)
-        #port = state(self())[:port]
-        #Logger.info("Me reconectare")
-        #start_link([model: model, port: port])
-        #loop(socket, shared)
-      end
+    case :gen_tcp.listen(port, opts) do
+      {:ok, listener} ->
+        spawn_link(fn -> accept(listener, shared) end)
+        {:ok, {ip, port}} = :inet.sockname(listener)
+
+        {:ok,
+         %{
+           ip: ip,
+           port: port,
+           shared: shared,
+           listener: listener
+         }}
+
+      {:error, reason} ->
+        {:stop, reason}
     end
   end
 
-  @moduledoc false
-  alias Modbus.Model.Shared
-  require Logger
-  use Agent
-
-  def start_link(params) do
-    Agent.start_link(fn -> init(params) end)
+  def terminate(reason, %{shared: shared}) do
+    Agent.stop(shared, reason)
   end
 
   def stop(pid) do
-    Agent.stop(pid)
+    # listener automatic close should
+    # close the accepting process which
+    # should close all client sockets
+    GenServer.stop(pid)
   end
 
-  #comply with formward id
-  def id(pid) do
-    Agent.get(pid, fn
+  def port(pid) do
+    GenServer.call(pid, :port)
+  end
+
+  def handle_call(:port, _from, state) do
+    {:reply, state.port, state}
+  end
+
+  defp accept(listener, shared) do
+    case :gen_tcp.accept(listener) do
+      {:ok, socket} ->
+        spawn(fn -> client(socket, shared) end)
+        accept(listener, shared)
+
       {:error, reason} ->
-        {:error, reason}
-
-      %{ip: ip, port: port, name: name} -> {:ok, %{ip: ip, port: port, name: name}}
-    end)
-  end
-
-  def state(pid) do
-    Agent.get(pid, fn state -> state end)
-  end
-
-  defp init(params) do
-    model = Keyword.fetch!(params, :model)
-    {:ok, shared} = Shared.start_link([model: model])
-    port = Keyword.get(params, :port, 0)
-    case :gen_tcp.listen(port, [:binary, packet: :raw, active: false]) do
-    {:ok, listener} ->
-      {:ok, {ip, port}} = :inet.sockname(listener)
-      name = Keyword.get(params, :name, name(ip, port))
-      {:ok, sup} = DynamicSupervisor.start_link(strategy: :one_for_one)
-      accept = spawn_link(fn -> accept(listener, sup, shared) end)
-      %{ip: ip, port: port, name: name, shared: shared, sup: sup, accept: accept, listener: listener}
-    {:error, reason}->
-      {:error, reason}
+        Process.exit(self(), reason)
     end
   end
 
-  defp name(ip, port) do
-    ips = :inet_parse.ntoa(ip)
-    mod = Atom.to_string(__MODULE__)
-    "#{mod}:#{ips}:#{port}"
-  end
+  def client(socket, shared) do
+    case :gen_tcp.recv(socket, 0) do
+      {:ok, data} ->
+        {cmd, transid} = Tcp.parse_req(data)
+        result = Shared.apply(shared, cmd)
 
-  defp accept(listener, sup, model) do
-    case :gen_tcp.accept(listener) do
-      {:ok, socket} ->
-        Logger.debug("New Client")
-        {:ok, pid} = DynamicSupervisor.start_child(sup, {Child, [socket, model]})
-        :ok = :gen_tcp.controlling_process(socket, pid)
-        send pid, :go
-        accept(listener, sup, model)
+        case result do
+          :ok ->
+            resp = Tcp.pack_res(cmd, nil, transid)
+            :gen_tcp.send(socket, resp)
+
+          {:ok, values} ->
+            resp = Tcp.pack_res(cmd, values, transid)
+            :gen_tcp.send(socket, resp)
+
+          _ ->
+            :ignore
+        end
+
+        client(socket, shared)
+
       {:error, reason} ->
-        Logger.debug("Error A: #{reason}")
+        Process.exit(self(), reason)
     end
   end
 end

@@ -1,6 +1,6 @@
 # modbus
 
-Modbus library with TCP Master & Slave implementation.
+Modbus library with TCP Master & Slave.
 
 For Serial RTU see [baud](https://github.com/samuelventura/baud).
 
@@ -16,81 +16,91 @@ Based on:
 
   ```elixir
   def deps do
-    [{:modbus, "~> 0.3.7"}]
+    [{:modbus, "~> 0.3.9"}]
   end
   ```
 
-2. Use as TCP master:
+2. Connect the TCP master to the testing TCP slave:
 
   ```elixir
-  #run with: mix opto22
-  alias Modbus.Tcp.Master
-
-  # opto22 rack configured as follows
-  # m0 - 4p digital input
-  #  p0 - 24V
-  #  p1 - 0V
-  #  p2 - m1.p2
-  #  p3 - m1.p3
-  # m1 - 4p digital output
-  #  p0 - NC
-  #  p1 - NC
-  #  p2 - m0.p2
-  #  p3 - m0.p3
-  # m2 - 2p analog input (-10V to +10V)
-  #  p0 - m3.p0
-  #  p1 - m3.p1
-  # m3 - 2p analog output (-10V to +10V)
-  #  p0 - m2.p0
-  #  p1 - m2.p1
-
-  {:ok, pid} = Master.start_link([ip: {10,77,0,2}, port: 502])
-
-  #turn off m1.p0
-  :ok = Master.exec(pid, {:fc, 1, 4, 0})
-  #turn on m1.p1
-  :ok = Master.exec(pid, {:fc, 1, 5, 1})
-  #alternate m1.p2 and m1.p3
-  :ok = Master.exec(pid, {:fc, 1, 6, [1, 0]})
-
-  #https://www.h-schmidt.net/FloatConverter/IEEE754.html
-  #write -5V (IEEE 754 float) to m3.p0
-  #<<-5::float-32>> -> <<192, 160, 0, 0>>
-  :ok = Master.exec(pid, {:phr, 1, 24, [0xc0a0, 0x0000]})
-  :ok = Master.exec(pid, {:phr, 1, 24, Modbus.IEEE754.to_2_regs(-5.0, :be)})
-  #write +5V (IEEE 754 float) to m3.p1
-  #<<+5::float-32>> -> <<64, 160, 0, 0>>
-  :ok = Master.exec(pid, {:phr, 1, 26, [0x40a0, 0x0000]})
-  :ok = Master.exec(pid, {:phr, 1, 26, Modbus.IEEE754.to_2_regs(+5.0, :be)})
-
-  :timer.sleep(20) #outputs settle delay
-
-  #read previous coils as inputs
-  {:ok, [0, 1, 1, 0]} = Master.exec(pid, {:ri, 1, 4, 4})
-
-  #read previous analog channels as input registers
-  {:ok, [0xc0a0, 0x0000, 0x40a0, 0x0000]} = Master.exec(pid, {:rir, 1, 24, 4})
-  {:ok, data} = Master.exec(pid, {:rir, 1, 24, 4})
-  [-5.0, +5.0] = Modbus.IEEE754.from_2n_regs(data, :be)
-  ```
-
-3. Use as TCP slave:
-
-  ```elixir
-  #run with: mix slave
+  # run with: mix slave
   alias Modbus.Tcp.Slave
   alias Modbus.Tcp.Master
 
-  #start your slave with a shared model
-  model = %{ 0x50=>%{ {:c, 0x5152}=>0 } }
-  {:ok, spid} = Slave.start_link([model: model])
-  #get the assigned tcp port
-  {:ok, %{port: port}} = Slave.id(spid)
+  # start your slave with a shared model
+  model = %{
+    0x50 => %{
+      {:c, 0x5152} => 0,
+      {:i, 0x5354} => 0,
+      {:i, 0x5355} => 1,
+      {:hr, 0x5657} => 0x6162,
+      {:ir, 0x5859} => 0x6364,
+      {:ir, 0x585A} => 0x6566
+    }
+  }
 
-  #interact with it
-  {:ok, mpid} = Master.start_link([ip: {127,0,0,1}, port: port])
+  {:ok, spid} = Slave.start_link(model: model)
+  # get the assigned tcp port
+  port = Slave.port(spid)
+
+  # interact with it
+  {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
+
+  # read input
+  {:ok, [0, 1]} = Master.exec(mpid, {:ri, 0x50, 0x5354, 2})
+  # read input registers
+  {:ok, [0x6364, 0x6566]} = Master.exec(mpid, {:rir, 0x50, 0x5859, 2})
+
+  # toggle coil and read it back
+  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 0})
   {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
+  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 1})
+  {:ok, [1]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
+
+  # increment holding register and read it back
+  {:ok, [0x6162]} = Master.exec(mpid, {:rhr, 0x50, 0x5657, 1})
+  :ok = Master.exec(mpid, {:phr, 0x50, 0x5657, 0x6163})
+  {:ok, [0x6163]} = Master.exec(mpid, {:rhr, 0x50, 0x5657, 1})
   ...
+  ```
+
+3. Connect the TCP master to a real industrial Opto22 device:
+
+  ```elixir
+  # run with: mix opto22
+  alias Modbus.Tcp.Master
+
+  # opto22 learning center configured with script/opto22.otg
+  # the otg is for an R2 but seems to work for R1, EB1, and EB2
+  # digital points increment address by 4 per module and by 1 per point
+  # analog points increment address by 8 per module and by 2 per point
+
+  {:ok, pid} = Master.start_link(ip: {10, 77, 0, 10}, port: 502)
+
+  # turn on 'alarm'
+  :ok = Master.exec(pid, {:fc, 1, 4, 1})
+  # turn on 'outside light'
+  :ok = Master.exec(pid, {:fc, 1, 5, 1})
+  # turn on 'inside light'
+  :ok = Master.exec(pid, {:fc, 1, 6, 1})
+  # turn on 'freezer door status'
+  :ok = Master.exec(pid, {:fc, 1, 7, 1})
+
+  :timer.sleep(400)
+
+  # turn off all digital outputs
+  :ok = Master.exec(pid, {:fc, 1, 4, [0, 0, 0, 0]})
+
+  # read the 'emergency' switch
+  {:ok, [0]} = Master.exec(pid, {:rc, 1, 8, 1})
+
+  # read the 'fuel level' knob (0 to 10,000)
+  {:ok, data} = Master.exec(pid, {:rir, 1, 32, 2})
+  [_] = Modbus.IEEE754.from_2n_regs(data, :be)
+
+  # write to the 'fuel display' (0 to 10,000)
+  data = Modbus.IEEE754.to_2_regs(+5000.0, :be)
+  :ok = Master.exec(pid, {:phr, 1, 16, data})
   ```
 
 ## Endianess
@@ -104,8 +114,26 @@ Based on:
 
 Future
 
+- [ ] Transport behaviour for serial and socket
+- [ ] Protocol behaviour for TCP, RTU, and ASCII
 - [ ] Improve documentation and samples
 - [ ] Improve error handling
+- [ ] TCP<->RTU translator
+
+Version 0.3.10
+
+- [x] Basic crash and socket testing
+- [x] Added echo server as testing helper
+
+Version 0.3.9
+
+- [x] Basic crash testing
+- [x] Resilient master, slave, and shared model
+
+Version 0.3.8
+
+- [x] Shared and slave for testing purposes only
+- [x] Removed client (no clear api)
 
 Version 0.3.7
 

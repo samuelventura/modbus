@@ -5,59 +5,47 @@ defmodule Modbus.Tcp.Master do
   ## Example
 
   ```elixir
-  #run with: mix opto22
+  # run with: mix slave
+  alias Modbus.Tcp.Slave
   alias Modbus.Tcp.Master
 
-  # opto22 rack configured as follows
-  # m0 - 4p digital input
-  #  p0 - 24V
-  #  p1 - 0V
-  #  p2 - m1.p2
-  #  p3 - m1.p3
-  # m1 - 4p digital output
-  #  p0 - NC
-  #  p1 - NC
-  #  p2 - m0.p2
-  #  p3 - m0.p3
-  # m2 - 2p analog input (-10V to +10V)
-  #  p0 - m3.p0
-  #  p1 - m3.p1
-  # m3 - 2p analog output (-10V to +10V)
-  #  p0 - m2.p0
-  #  p1 - m2.p1
+  # start your slave with a shared model
+  model = %{
+    0x50 => %{
+      {:c, 0x5152} => 0,
+      {:i, 0x5354} => 0,
+      {:i, 0x5355} => 1,
+      {:hr, 0x5657} => 0x6162,
+      {:ir, 0x5859} => 0x6364,
+      {:ir, 0x585A} => 0x6566
+    }
+  }
 
-  {:ok, pid} = Master.start_link([ip: {10,77,0,2}, port: 502])
+  {:ok, spid} = Slave.start_link(model: model)
+  # get the assigned tcp port
+  port = Slave.port(spid)
 
-  #turn off m1.p0
-  :ok = Master.exec(pid, {:fc, 1, 4, 0})
-  #turn on m1.p1
-  :ok = Master.exec(pid, {:fc, 1, 5, 1})
-  #alternate m1.p2 and m1.p3
-  :ok = Master.exec(pid, {:fc, 1, 6, [1, 0]})
+  # interact with it
+  {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
 
-  #https://www.h-schmidt.net/FloatConverter/IEEE754.html
-  #write -5V (IEEE 754 float) to m3.p0
-  #<<-5::float-32>> -> <<192, 160, 0, 0>>
-  :ok = Master.exec(pid, {:phr, 1, 24, [0xc0a0, 0x0000]})
-  :ok = Master.exec(pid, {:phr, 1, 24, Modbus.IEEE754.to_2_regs(-5.0, :be)})
-  #write +5V (IEEE 754 float) to m3.p1
-  #<<+5::float-32>> -> <<64, 160, 0, 0>>
-  :ok = Master.exec(pid, {:phr, 1, 26, [0x40a0, 0x0000]})
-  :ok = Master.exec(pid, {:phr, 1, 26, Modbus.IEEE754.to_2_regs(+5.0, :be)})
+  # read input
+  {:ok, [0, 1]} = Master.exec(mpid, {:ri, 0x50, 0x5354, 2})
+  # read input registers
+  {:ok, [0x6364, 0x6566]} = Master.exec(mpid, {:rir, 0x50, 0x5859, 2})
 
-  :timer.sleep(20) #outputs settle delay
+  # toggle coil and read it back
+  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 0})
+  {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
+  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 1})
+  {:ok, [1]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
 
-  #read previous coils as inputs
-  {:ok, [0, 1, 1, 0]} = Master.exec(pid, {:ri, 1, 4, 4})
-
-  #read previous analog channels as input registers
-  {:ok, [0xc0a0, 0x0000, 0x40a0, 0x0000]} = Master.exec(pid, {:rir, 1, 24, 4})
-  {:ok, data} = Master.exec(pid, {:rir, 1, 24, 4})
-  [-5.0, +5.0] = Modbus.IEEE754.from_2n_regs(data, :be)
+  # increment holding register and read it back
+  {:ok, [0x6162]} = Master.exec(mpid, {:rhr, 0x50, 0x5657, 1})
+  :ok = Master.exec(mpid, {:phr, 0x50, 0x5657, 0x6163})
+  {:ok, [0x6163]} = Master.exec(mpid, {:rhr, 0x50, 0x5657, 1})
   ```
   """
   alias Modbus.Tcp
-  require Logger
   @to 2000
 
   ##########################################
@@ -65,65 +53,39 @@ defmodule Modbus.Tcp.Master do
   ##########################################
 
   @doc """
-  Starts the Server.
+  Opens the connection.
 
-  `state` is a keyword list where:
-  `ip` is the internet address to connect to.
-  `port` is the tcp port number to connect to.
-  `timeout` is the connection timeout.
+  `opts` is a keyword list where:
+  - `ip` is the internet address to connect to.
+  - `port` is the tcp port number to connect to.
+  - `timeout` is the optional connection timeout.
 
-  Returns `{:ok, pid}`.
+  Returns `{:ok, pid}` | `{:error, reason}`.
 
   ## Example
 
   ```elixir
-  Modbus.Tcp.Master.start_link([ip: {10,77,0,2}, port: 502, timeout: 2000])
+  Modbus.Tcp.Master.start_link(ip: {10,77,0,10}, port: 502, timeout: 2000)
   ```
   """
 
-  def start_link(params, opts \\ []) do
-    ip = Keyword.fetch!(params, :ip)
-    port = Keyword.fetch!(params, :port)
-    timeout = Keyword.get(params, :timeout, @to)
-    case :gen_tcp.connect(ip, port, [:binary, packet: :raw, active: :false], timeout) do
-      {:ok, socket} ->
-        Agent.start_link(fn -> {socket, 0} end, opts)
-      error ->
-        error
-    end
+  def start_link(opts) do
+    ip = Keyword.fetch!(opts, :ip)
+    port = Keyword.fetch!(opts, :port)
+    timeout = Keyword.get(opts, :timeout, @to)
+    init = %{ip: ip, port: port, timeout: timeout}
+    GenServer.start_link(__MODULE__.Server, init)
   end
-
-  def child_spec(opts) do
-    %{
-      id: __MODULE__,
-      start: {__MODULE__, :start_link, [opts]},
-      type: :worker,
-      restart: :permanent,
-      shutdown: 500
-    }
-  end
-
 
   @doc """
-  Stops the Server.
+  Closes the connection.
   """
   def stop(pid) do
-    Agent.get_and_update(pid, fn {socket, _transid} ->
-                                 :ok = :gen_tcp.close(socket)
-                                 {:ok, {nil, -1}}
-                              end)
-    Agent.stop(pid)
+    GenServer.stop(pid)
   end
 
   @doc """
-  Gets the state of the Server.
-  """
-  def state(pid) do
-    Agent.get(pid, fn state -> state end)
-  end
-
-  @doc """
-  Executes a Modbus TCP command.
+  Executes a Modbus command.
 
   `cmd` is one of:
 
@@ -136,30 +98,75 @@ defmodule Modbus.Tcp.Master do
   - `{:fc, slave, address, values}` force multiple coils.
   - `{:phr, slave, address, values}` preset multiple holding registers.
 
-  Returns `:ok` | `{:ok, [values]}`.
+  Returns `:ok` | `{:ok, [values]}` | `{:error, reason}`.
   """
-  def exec(pid, cmd, timeout \\ @to) do
-    case state(pid) do
-      {:error, reason} ->
-        {:error, reason}
-      _->
-        Agent.get_and_update(pid, fn {socket, transid} ->
-        request = Tcp.pack_req(cmd, transid)
-        length = Tcp.res_len(cmd)
-        :gen_tcp.send(socket, request)
-        case :gen_tcp.recv(socket, length, timeout) do
-          {:ok, response} ->
-            values = Tcp.parse_res(cmd, response, transid)
-            case values do
-              nil -> {:ok, {socket, transid + 1}}
-              _ -> {{:ok, values}, {socket, transid + 1}}
-            end
-          {:error, reason} ->
-            Logger.debug("Error: #{reason}")
-            {{:error, reason}, {socket, transid}}
-        end
-        end)
-    end
+  def exec(pid, cmd, timeout \\ @to) when is_tuple(cmd) and is_integer(timeout) do
+    GenServer.call(pid, {:exec, cmd, timeout})
   end
 
+  defmodule Server do
+    @moduledoc false
+    use GenServer
+
+    def init(init) do
+      %{ip: ip, port: port, timeout: timeout} = init
+      opts = [:binary, packet: :raw, active: false]
+
+      case :gen_tcp.connect(ip, port, opts, timeout) do
+        {:ok, sid} ->
+          state = %{socket: sid, transid: 0}
+          {:ok, state}
+
+        {:error, reason} ->
+          {:stop, reason}
+      end
+    end
+
+    def handle_call({:exec, cmd, timeout}, _from, state) do
+      %{socket: socket, transid: transid} = state
+      resp = exec(socket, cmd, transid, timeout)
+      {:reply, resp, Map.put(state, :transid, transid + 1)}
+    end
+
+    defp exec(socket, cmd, transid, timeout) do
+      case request(cmd, transid) do
+        {:ok, request, length} ->
+          # clear input buffer
+          :gen_tcp.recv(socket, 0, 0)
+
+          case :gen_tcp.send(socket, request) do
+            :ok ->
+              case :gen_tcp.recv(socket, length, timeout) do
+                {:ok, response} ->
+                  values = Tcp.parse_res(cmd, response, transid)
+
+                  case values do
+                    nil -> :ok
+                    _ -> {:ok, values}
+                  end
+
+                error ->
+                  error
+              end
+
+            error ->
+              error
+          end
+
+        error ->
+          error
+      end
+    end
+
+    defp request(cmd, transid) do
+      try do
+        request = Tcp.pack_req(cmd, transid)
+        length = Tcp.res_len(cmd)
+        {:ok, request, length}
+      rescue
+        _ ->
+          {:error, {:invalid, cmd}}
+      end
+    end
+  end
 end
