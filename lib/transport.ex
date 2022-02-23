@@ -2,7 +2,8 @@ defmodule Modbus.Transport do
   @moduledoc false
   @callback open(opts :: keyword()) ::
               {:ok, id :: any()} | {:error, reason :: any()}
-  @callback read(id :: any(), count :: integer(), timeout :: integer()) ::
+  @callback readp(id :: any()) :: {:ok, packet :: binary()} | {:error, reason :: any()}
+  @callback readn(id :: any(), count :: integer(), timeout :: integer()) ::
               {:ok, packet :: binary()} | {:error, reason :: any()}
   @callback write(id :: any(), packet :: binary()) :: :ok | {:error, reason :: any()}
   @callback close(id :: any()) :: :ok | {:error, reason :: any()}
@@ -14,8 +15,12 @@ defmodule Modbus.Transport do
     mod.open(opts)
   end
 
-  def read({mod, id}, count, timeout) do
-    mod.read(id, count, timeout)
+  def readn({mod, id}, count, timeout) do
+    mod.readn(id, count, timeout)
+  end
+
+  def readp({mod, id}) do
+    mod.readp(id)
   end
 
   def write({mod, id}, packet) do

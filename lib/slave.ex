@@ -70,7 +70,7 @@ defmodule Modbus.Slave do
   end
 
   def client(shared, trans, proto) do
-    case Transport.read(trans, 0, -1) do
+    case Transport.readp(trans) do
       {:ok, data} ->
         {cmd, tid} = Protocol.parse_req(proto, data)
 
