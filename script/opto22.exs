@@ -7,7 +7,7 @@ alias Modbus.Float
 # digital points increment address by 4 per module and by 1 per point
 # analog points increment address by 8 per module and by 2 per point
 
-{:ok, master} = Master.open(ip: {10, 77, 0, 10}, port: 502)
+{:ok, master} = Master.start_link(ip: {10, 77, 0, 10}, port: 502)
 
 # turn on 'alarm'
 :ok = Master.exec(master, {:fc, 1, 4, 1})
@@ -34,4 +34,4 @@ alias Modbus.Float
 data = Float.to_be([+5000.0])
 :ok = Master.exec(master, {:phr, 1, 16, data})
 
-:ok = Master.close(master)
+:ok = Master.stop(master)

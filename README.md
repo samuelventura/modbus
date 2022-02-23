@@ -44,7 +44,7 @@ Based on:
   port = Slave.port(slave)
 
   # interact with it
-  {:ok, master} = Master.open(ip: {127, 0, 0, 1}, port: port)
+  {:ok, master} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
 
   # read input
   {:ok, [0, 1]} = Master.exec(master, {:ri, 0x50, 0x5354, 2})
@@ -62,7 +62,7 @@ Based on:
   :ok = Master.exec(master, {:phr, 0x50, 0x5657, 0x6163})
   {:ok, [0x6163]} = Master.exec(master, {:rhr, 0x50, 0x5657, 1})
 
-  :ok = Master.close(master)
+  :ok = Master.stop(master)
   :ok = Slave.stop(slave)
   ```
 
@@ -78,7 +78,7 @@ Based on:
   # digital points increment address by 4 per module and by 1 per point
   # analog points increment address by 8 per module and by 2 per point
 
-  {:ok, master} = Master.open(ip: {10, 77, 0, 10}, port: 502)
+  {:ok, master} = Master.start_link(ip: {10, 77, 0, 10}, port: 502)
 
   # turn on 'alarm'
   :ok = Master.exec(master, {:fc, 1, 4, 1})
@@ -105,7 +105,7 @@ Based on:
   data = Float.to_be([+5000.0])
   :ok = Master.exec(master, {:phr, 1, 16, data})
 
-  :ok = Master.close(master)
+  :ok = Master.stop(master)
   ```
 
 ## Endianess

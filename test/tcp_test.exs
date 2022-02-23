@@ -21,7 +21,6 @@ defmodule Modbus.TcpTest do
     # run with: mix slave
     alias Modbus.Slave
     alias Modbus.Master
-    alias Modbus.Registry
 
     # start your slave with a shared model
     model = %{0x50 => %{{:c, 0x5152} => 0}}
@@ -31,17 +30,17 @@ defmodule Modbus.TcpTest do
     port = Slave.port(slave)
 
     # interact with it
-    {:ok, master} = Master.open(ip: {127, 0, 0, 1}, port: port)
-    trans = master |> elem(1)
-    ini = Registry.update({:tid, trans}, fn _ -> 0xFFF0 end) |> elem(0)
+    {:ok, master} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
+    ini = 0xFFF0
+    Agent.update(master, fn state -> Map.put(state, :tid, 0xFFF0) end)
 
     for tid <- ini..(ini + 0x10) do
       tid = Bitwise.band(tid, 0xFFFF)
-      ^tid = Registry.lookup!({:tid, trans})
+      assert tid == Agent.get(master, fn state -> state.tid end)
       :ok = Master.exec(master, {:fc, 0x50, 0x5152, 0})
     end
 
-    :ok = Master.close(master)
+    :ok = Master.stop(master)
     :ok = Slave.stop(slave)
   end
 end

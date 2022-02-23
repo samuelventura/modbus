@@ -23,7 +23,7 @@ defmodule Modbus.SlaveTest do
     port = Slave.port(slave)
 
     # interact with it
-    {:ok, master} = Master.open(ip: {127, 0, 0, 1}, port: port)
+    {:ok, master} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
 
     # read input
     {:ok, [0, 1]} = Master.exec(master, {:ri, 0x50, 0x5354, 2})
@@ -41,7 +41,7 @@ defmodule Modbus.SlaveTest do
     :ok = Master.exec(master, {:phr, 0x50, 0x5657, 0x6163})
     {:ok, [0x6163]} = Master.exec(master, {:rhr, 0x50, 0x5657, 1})
 
-    :ok = Master.close(master)
+    :ok = Master.stop(master)
     :ok = Slave.stop(slave)
   end
 end

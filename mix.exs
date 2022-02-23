@@ -19,7 +19,6 @@ defmodule Modbus.Mixfile do
   def application do
     [
       extra_applications: [],
-      mod: {Modbus.Application, []},
       env: []
     ]
   end

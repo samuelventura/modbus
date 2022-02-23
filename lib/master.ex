@@ -26,7 +26,7 @@ defmodule Modbus.Master do
   port = Slave.port(slave)
 
   # interact with it
-  {:ok, master} = Master.open(ip: {127, 0, 0, 1}, port: port)
+  {:ok, master} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
 
   # read input
   {:ok, [0, 1]} = Master.exec(master, {:ri, 0x50, 0x5354, 2})
@@ -44,13 +44,12 @@ defmodule Modbus.Master do
   :ok = Master.exec(master, {:phr, 0x50, 0x5657, 0x6163})
   {:ok, [0x6163]} = Master.exec(master, {:rhr, 0x50, 0x5657, 1})
 
-  :ok = Master.close(master)
+  :ok = Master.stop(master)
   :ok = Slave.stop(slave)
   ```
   """
   alias Modbus.Transport
   alias Modbus.Protocol
-  alias Modbus.Registry
   @to 2000
 
   ##########################################
@@ -76,22 +75,22 @@ defmodule Modbus.Master do
   ## Example
 
   ```elixir
-  Modbus.Master.open(ip: {10,77,0,10}, port: 502, timeout: 2000)
+  Modbus.Master.start_link(ip: {10,77,0,10}, port: 502, timeout: 2000)
   ```
   """
 
-  def open(opts) do
+  def start_link(opts) do
     transports = Application.fetch_env!(:modbus, :transports)
     protocols = Application.fetch_env!(:modbus, :protocols)
     trans = Keyword.get(opts, :trans, :tcp)
     proto = Keyword.get(opts, :proto, :tcp)
     transm = Keyword.fetch!(transports, trans)
     protom = Keyword.fetch!(protocols, proto)
-    next = Protocol.next(protom, nil)
+    tid = Protocol.next(protom, nil)
     {:ok, transi} = Transport.open(transm, opts)
     transp = {transm, transi}
-    {:ok, _} = Registry.register({:tid, transp}, next)
-    {:ok, {__MODULE__, transp, protom}}
+    state = %{trans: transp, proto: protom, tid: tid}
+    Agent.start_link(fn -> state end)
   end
 
   @doc """
@@ -99,8 +98,10 @@ defmodule Modbus.Master do
 
   Returns `:ok` | `{:error, reason}`.
   """
-  def close({__MODULE__, trans, _proto} = _master) do
-    Transport.close(trans)
+  def stop(master) do
+    state = Agent.get(master, fn state -> state end)
+    Transport.close(state.trans)
+    Agent.stop(master)
   end
 
   @doc """
@@ -119,9 +120,12 @@ defmodule Modbus.Master do
 
   Returns `:ok` | `{:ok, [values]}` | `{:error, reason}`.
   """
-  def exec({__MODULE__, trans, proto} = _master, cmd, timeout \\ @to)
+  def exec(master, cmd, timeout \\ @to)
       when is_tuple(cmd) and is_integer(timeout) do
-    {tid, _} = Registry.update({:tid, trans}, &Protocol.next(proto, &1))
+    %{trans: trans, proto: proto, tid: tid} =
+      Agent.get_and_update(master, fn state ->
+        {state, Map.update!(state, :tid, &Modbus.Protocol.next(state.proto, &1))}
+      end)
 
     case request(proto, cmd, tid) do
       {:ok, request, length} ->
