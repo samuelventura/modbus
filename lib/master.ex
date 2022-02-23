@@ -81,10 +81,12 @@ defmodule Modbus.Master do
   """
 
   def open(opts) do
+    transports = Application.fetch_env!(:modbus, :transports)
+    protocols = Application.fetch_env!(:modbus, :protocols)
     trans = Keyword.get(opts, :trans, :tcp)
     proto = Keyword.get(opts, :proto, :tcp)
-    transm = Registry.lookup!({:trans, trans})
-    protom = Registry.lookup!({:proto, proto})
+    transm = Keyword.fetch!(transports, trans)
+    protom = Keyword.fetch!(protocols, proto)
     next = Protocol.next(protom, nil)
     {:ok, transi} = Transport.open(transm, opts)
     transp = {transm, transi}

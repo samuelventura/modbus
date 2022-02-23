@@ -3,16 +3,17 @@ defmodule Modbus.Slave do
   use GenServer
   alias Modbus.Transport
   alias Modbus.Protocol
-  alias Modbus.Registry
   alias Modbus.Shared
 
   def start_link(opts) do
+    transports = Application.fetch_env!(:modbus, :transports)
+    protocols = Application.fetch_env!(:modbus, :protocols)
     ip = Keyword.get(opts, :ip, {127, 0, 0, 1})
     port = Keyword.get(opts, :port, 0)
     model = Keyword.fetch!(opts, :model)
     proto = Keyword.get(opts, :proto, :tcp)
-    transm = Registry.lookup!({:trans, :tcp})
-    protom = Registry.lookup!({:proto, proto})
+    transm = Keyword.fetch!(transports, :tcp)
+    protom = Keyword.fetch!(protocols, proto)
     init = %{trans: transm, proto: protom, model: model, port: port, ip: ip}
     GenServer.start_link(__MODULE__, init)
   end

@@ -10,11 +10,6 @@ defmodule Modbus.Application do
 
     opts = [strategy: :one_for_one, name: Modbus.Supervisor]
 
-    try do
-      Supervisor.start_link(children, opts)
-    after
-      Modbus.Registry.register({:trans, :tcp}, Modbus.Tcp.Transport)
-      Modbus.Registry.register({:proto, :tcp}, Modbus.Tcp.Protocol)
-    end
+    Supervisor.start_link(children, opts)
   end
 end
