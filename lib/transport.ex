@@ -8,9 +8,6 @@ defmodule Modbus.Transport do
   @callback write(id :: any(), packet :: binary()) :: :ok | {:error, reason :: any()}
   @callback close(id :: any()) :: :ok | {:error, reason :: any()}
 
-  def module(:tcp), do: Modbus.Tcp.Transport
-  def module(trans), do: trans
-
   def open(mod, opts) do
     mod.open(opts)
   end

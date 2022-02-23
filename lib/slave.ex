@@ -9,10 +9,9 @@ defmodule Modbus.Slave do
     ip = Keyword.get(opts, :ip, {127, 0, 0, 1})
     port = Keyword.get(opts, :port, 0)
     model = Keyword.fetch!(opts, :model)
-    proto = Keyword.get(opts, :proto, :tcp)
-    transm = Transport.module(:tcp)
-    protom = Protocol.module(proto)
-    init = %{trans: transm, proto: protom, model: model, port: port, ip: ip}
+    trans = Modbus.Tcp.Transport
+    proto = Keyword.get(opts, :proto, Modbus.Tcp.Protocol)
+    init = %{trans: trans, proto: proto, model: model, port: port, ip: ip}
     GenServer.start_link(__MODULE__, init)
   end
 
