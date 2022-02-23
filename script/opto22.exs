@@ -1,5 +1,6 @@
 # run with: mix opto22
 alias Modbus.Master
+alias Modbus.Float
 
 # opto22 learning center configured with script/opto22.otg
 # the otg is for an R2 but seems to work for R1, EB1, and EB2
@@ -27,10 +28,10 @@ alias Modbus.Master
 
 # read the 'fuel level' knob (0 to 10,000)
 {:ok, data} = Master.exec(master, {:rir, 1, 32, 2})
-[_] = Modbus.Float.from_be(data)
+[_] = Float.from_be(data)
 
 # write to the 'fuel display' (0 to 10,000)
-data = Modbus.Float.to_be([+5000.0])
+data = Float.to_be([+5000.0])
 :ok = Master.exec(master, {:phr, 1, 16, data})
 
 :ok = Master.close(master)
