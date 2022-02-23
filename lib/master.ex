@@ -87,10 +87,8 @@ defmodule Modbus.Master do
     transm = Keyword.fetch!(transports, trans)
     protom = Keyword.fetch!(protocols, proto)
     tid = Protocol.next(protom, nil)
-    {:ok, transi} = Transport.open(transm, opts)
-    transp = {transm, transi}
-    state = %{trans: transp, proto: protom, tid: tid}
-    Agent.start_link(fn -> state end)
+    init = %{trans: transm, proto: protom, opts: opts, tid: tid}
+    GenServer.start_link(__MODULE__.Server, init)
   end
 
   @doc """
@@ -99,9 +97,7 @@ defmodule Modbus.Master do
   Returns `:ok` | `{:error, reason}`.
   """
   def stop(master) do
-    state = Agent.get(master, fn state -> state end)
-    Transport.close(state.trans)
-    Agent.stop(master)
+    GenServer.stop(master)
   end
 
   @doc """
@@ -122,22 +118,56 @@ defmodule Modbus.Master do
   """
   def exec(master, cmd, timeout \\ @to)
       when is_tuple(cmd) and is_integer(timeout) do
-    %{trans: trans, proto: proto, tid: tid} =
-      Agent.get_and_update(master, fn state ->
-        {state, Map.update!(state, :tid, &Modbus.Protocol.next(state.proto, &1))}
-      end)
+    GenServer.call(master, {:exec, cmd, timeout})
+  end
 
-    case request(proto, cmd, tid) do
-      {:ok, request, length} ->
-        case Transport.write(trans, request) do
-          :ok ->
-            case Transport.read(trans, length, timeout) do
-              {:ok, response} ->
-                values = Protocol.parse_res(proto, cmd, response, tid)
+  defmodule Server do
+    @moduledoc false
+    use GenServer
 
-                case values do
-                  nil -> :ok
-                  _ -> {:ok, values}
+    def init(%{trans: transm, opts: opts} = init) do
+      case Transport.open(transm, opts) do
+        {:ok, transi} ->
+          transp = {transm, transi}
+          {:ok, %{trans: transp, proto: init.proto, tid: init.tid}}
+
+        {:error, reason} ->
+          {:stop, reason}
+      end
+    end
+
+    def terminate(_reason, %{trans: trans}) do
+      Transport.close(trans)
+    end
+
+    def handle_call({:get, :tid}, _from, state) do
+      {:reply, state.tid, state}
+    end
+
+    def handle_call({:update, :tid, tid}, _from, state) do
+      {:reply, :ok, Map.put(state, :tid, tid)}
+    end
+
+    def handle_call({:exec, cmd, timeout}, _from, state) do
+      %{trans: trans, proto: proto, tid: tid} = state
+      state = Map.put(state, :tid, Protocol.next(state.proto, tid))
+
+      result =
+        case request(proto, cmd, tid) do
+          {:ok, request, length} ->
+            case Transport.write(trans, request) do
+              :ok ->
+                case Transport.read(trans, length, timeout) do
+                  {:ok, response} ->
+                    values = Protocol.parse_res(proto, cmd, response, tid)
+
+                    case values do
+                      nil -> :ok
+                      _ -> {:ok, values}
+                    end
+
+                  error ->
+                    error
                 end
 
               error ->
@@ -148,19 +178,18 @@ defmodule Modbus.Master do
             error
         end
 
-      error ->
-        error
+      {:reply, result, state}
     end
-  end
 
-  defp request(proto, cmd, tid) do
-    try do
-      request = Protocol.pack_req(proto, cmd, tid)
-      length = Protocol.res_len(proto, cmd)
-      {:ok, request, length}
-    rescue
-      _ ->
-        {:error, {:invalid, cmd}}
+    defp request(proto, cmd, tid) do
+      try do
+        request = Protocol.pack_req(proto, cmd, tid)
+        length = Protocol.res_len(proto, cmd)
+        {:ok, request, length}
+      rescue
+        _ ->
+          {:error, {:invalid, cmd}}
+      end
     end
   end
 end

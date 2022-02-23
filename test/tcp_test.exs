@@ -32,11 +32,11 @@ defmodule Modbus.TcpTest do
     # interact with it
     {:ok, master} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
     ini = 0xFFF0
-    Agent.update(master, fn state -> Map.put(state, :tid, 0xFFF0) end)
+    GenServer.call(master, {:update, :tid, ini})
 
     for tid <- ini..(ini + 0x10) do
       tid = Bitwise.band(tid, 0xFFFF)
-      assert tid == Agent.get(master, fn state -> state.tid end)
+      assert tid == GenServer.call(master, {:get, :tid})
       :ok = Master.exec(master, {:fc, 0x50, 0x5152, 0})
     end
 
