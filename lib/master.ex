@@ -80,12 +80,10 @@ defmodule Modbus.Master do
   """
 
   def start_link(opts) do
-    transports = Application.fetch_env!(:modbus, :transports)
-    protocols = Application.fetch_env!(:modbus, :protocols)
     trans = Keyword.get(opts, :trans, :tcp)
     proto = Keyword.get(opts, :proto, :tcp)
-    transm = Keyword.fetch!(transports, trans)
-    protom = Keyword.fetch!(protocols, proto)
+    transm = Transport.module(trans)
+    protom = Protocol.module(proto)
     tid = Protocol.next(protom, nil)
     init = %{trans: transm, proto: protom, opts: opts, tid: tid}
     GenServer.start_link(__MODULE__.Server, init)

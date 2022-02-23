@@ -7,6 +7,10 @@ defmodule Modbus.Protocol do
   @callback parse_req(req :: binary()) :: {cmd :: tuple(), tid :: any}
   @callback pack_res(cmd :: tuple(), values :: list(integer()), tid :: any) :: req :: binary()
 
+  def module(:tcp), do: Modbus.Tcp.Protocol
+  def module(:rtu), do: Modbus.Rtu.Protocol
+  def module(proto), do: proto
+
   def next(mod, tid) do
     mod.next(tid)
   end
