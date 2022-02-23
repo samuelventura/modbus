@@ -61,11 +61,12 @@ defmodule Modbus.Master do
   Opens the connection.
 
   `opts` is a keyword list where:
-  - `trans` is the transport to use (defaults to :tcp).
-  - `proto` is the protocol to use (defaults to :tcp).
-  The rest of options is passed verbatim to the transport
-  constructor. The following are the options needed
-  by the default TCP transport.
+  - `trans` is the transport to use. Only the `:tcp` transport is available but other transports can be registered.
+  - `proto` is the protocol to use. Available protocols are `:tcp` and `:rtu`. Defaults to `:tcp`.
+
+  The rest of options are passed verbatim to the transport constructor.
+
+  The following are the options needed by the default TCP transport.
   - `ip` is the internet address to connect to.
   - `port` is the tcp port number to connect to.
   - `timeout` is the optional connection timeout.
