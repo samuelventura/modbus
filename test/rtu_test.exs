@@ -10,7 +10,7 @@ defmodule Modbus.RtuTest do
   end
 
   defp p(<<crc_hi, crc_lo>>, payload) do
-    assert <<payload::binary, crc_lo, crc_hi>> == payload |> Rtu.wrap()
-    assert payload == <<payload::binary, crc_lo, crc_hi>> |> Rtu.unwrap()
+    assert <<payload::binary, crc_lo, crc_hi>> == payload |> Rtu.Protocol.Wrapper.wrap()
+    assert payload == <<payload::binary, crc_lo, crc_hi>> |> Rtu.Protocol.Wrapper.unwrap()
   end
 end

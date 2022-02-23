@@ -13,7 +13,7 @@ defmodule Modbus.TcpTest do
   end
 
   defp p(transid, payload, packet) do
-    assert packet == payload |> Tcp.wrap(transid)
-    assert {payload, transid} == packet |> Tcp.unwrap()
+    assert packet == payload |> Tcp.Protocol.Wrapper.wrap(transid)
+    assert {payload, transid} == packet |> Tcp.Protocol.Wrapper.unwrap()
   end
 end

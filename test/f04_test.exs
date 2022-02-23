@@ -1,6 +1,6 @@
 defmodule Modbus.F04Test do
   use ExUnit.Case
-  import TestHelper
+  import Modbus.TestHelper
 
   test "Read 0x6162 from Single Input Register" do
     model0 = %{0x50 => %{{:ir, 0x5152} => 0x6162}}

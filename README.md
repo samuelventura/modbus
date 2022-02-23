@@ -12,11 +12,11 @@ Based on:
 
 ## Installation and Usage
 
-1. Add `modbus` to your list of dependencies in `mix.exs`:
+1. Add [`modbus`](https://hex.pm/packages/modbus) to your list of dependencies in `mix.exs`:
 
   ```elixir
   def deps do
-    [{:modbus, "~> 0.3.9"}]
+    [{:modbus, "~> MAJOR.MINOR"}]
   end
   ```
 
@@ -24,8 +24,8 @@ Based on:
 
   ```elixir
   # run with: mix slave
-  alias Modbus.Tcp.Slave
-  alias Modbus.Tcp.Master
+  alias Modbus.Slave
+  alias Modbus.Master
 
   # start your slave with a shared model
   model = %{
@@ -39,28 +39,31 @@ Based on:
     }
   }
 
-  {:ok, spid} = Slave.start_link(model: model)
+  {:ok, slave} = Slave.start_link(model: model)
   # get the assigned tcp port
-  port = Slave.port(spid)
+  port = Slave.port(slave)
 
   # interact with it
-  {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
+  {:ok, master} = Master.open(ip: {127, 0, 0, 1}, port: port)
 
   # read input
-  {:ok, [0, 1]} = Master.exec(mpid, {:ri, 0x50, 0x5354, 2})
+  {:ok, [0, 1]} = Master.exec(master, {:ri, 0x50, 0x5354, 2})
   # read input registers
-  {:ok, [0x6364, 0x6566]} = Master.exec(mpid, {:rir, 0x50, 0x5859, 2})
+  {:ok, [0x6364, 0x6566]} = Master.exec(master, {:rir, 0x50, 0x5859, 2})
 
   # toggle coil and read it back
-  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 0})
-  {:ok, [0]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
-  :ok = Master.exec(mpid, {:fc, 0x50, 0x5152, 1})
-  {:ok, [1]} = Master.exec(mpid, {:rc, 0x50, 0x5152, 1})
+  :ok = Master.exec(master, {:fc, 0x50, 0x5152, 0})
+  {:ok, [0]} = Master.exec(master, {:rc, 0x50, 0x5152, 1})
+  :ok = Master.exec(master, {:fc, 0x50, 0x5152, 1})
+  {:ok, [1]} = Master.exec(master, {:rc, 0x50, 0x5152, 1})
 
   # increment holding register and read it back
-  {:ok, [0x6162]} = Master.exec(mpid, {:rhr, 0x50, 0x5657, 1})
-  :ok = Master.exec(mpid, {:phr, 0x50, 0x5657, 0x6163})
-  {:ok, [0x6163]} = Master.exec(mpid, {:rhr, 0x50, 0x5657, 1})
+  {:ok, [0x6162]} = Master.exec(master, {:rhr, 0x50, 0x5657, 1})
+  :ok = Master.exec(master, {:phr, 0x50, 0x5657, 0x6163})
+  {:ok, [0x6163]} = Master.exec(master, {:rhr, 0x50, 0x5657, 1})
+
+  :ok = Master.close(master)
+  :ok = Slave.stop(slave)
   ...
   ```
 
@@ -68,39 +71,41 @@ Based on:
 
   ```elixir
   # run with: mix opto22
-  alias Modbus.Tcp.Master
+  alias Modbus.Master
 
   # opto22 learning center configured with script/opto22.otg
   # the otg is for an R2 but seems to work for R1, EB1, and EB2
   # digital points increment address by 4 per module and by 1 per point
   # analog points increment address by 8 per module and by 2 per point
 
-  {:ok, pid} = Master.start_link(ip: {10, 77, 0, 10}, port: 502)
+  {:ok, master} = Master.open(ip: {10, 77, 0, 10}, port: 502)
 
   # turn on 'alarm'
-  :ok = Master.exec(pid, {:fc, 1, 4, 1})
+  :ok = Master.exec(master, {:fc, 1, 4, 1})
   # turn on 'outside light'
-  :ok = Master.exec(pid, {:fc, 1, 5, 1})
+  :ok = Master.exec(master, {:fc, 1, 5, 1})
   # turn on 'inside light'
-  :ok = Master.exec(pid, {:fc, 1, 6, 1})
+  :ok = Master.exec(master, {:fc, 1, 6, 1})
   # turn on 'freezer door status'
-  :ok = Master.exec(pid, {:fc, 1, 7, 1})
+  :ok = Master.exec(master, {:fc, 1, 7, 1})
 
   :timer.sleep(400)
 
   # turn off all digital outputs
-  :ok = Master.exec(pid, {:fc, 1, 4, [0, 0, 0, 0]})
+  :ok = Master.exec(master, {:fc, 1, 4, [0, 0, 0, 0]})
 
   # read the 'emergency' switch
-  {:ok, [0]} = Master.exec(pid, {:rc, 1, 8, 1})
+  {:ok, [0]} = Master.exec(master, {:rc, 1, 8, 1})
 
   # read the 'fuel level' knob (0 to 10,000)
-  {:ok, data} = Master.exec(pid, {:rir, 1, 32, 2})
-  [_] = Modbus.IEEE754.from_2n_regs(data, :be)
+  {:ok, data} = Master.exec(master, {:rir, 1, 32, 2})
+  [_] = Modbus.Float.from_be(data)
 
   # write to the 'fuel display' (0 to 10,000)
-  data = Modbus.IEEE754.to_2_regs(+5000.0, :be)
-  :ok = Master.exec(pid, {:phr, 1, 16, data})
+  data = Modbus.Float.to_be([+5000.0])
+  :ok = Master.exec(master, {:phr, 1, 16, data})
+
+  :ok = Master.close(master)
   ```
 
 ## Endianess
@@ -120,8 +125,10 @@ Future
 - [ ] Improve error handling
 - [ ] TCP<->RTU translator
 
-Version 0.3.10
+Version 0.4.0
 
+- [x] Transport and protocol behaviours
+- [x] API refactored (breaking changes)
 - [x] Basic crash and socket testing
 - [x] Added echo server as testing helper
 

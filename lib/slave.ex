@@ -1,32 +1,38 @@
-defmodule Modbus.Tcp.Slave do
-  use GenServer
+defmodule Modbus.Slave do
   @moduledoc false
-  alias Modbus.Model.Shared
-  alias Modbus.Tcp
+  use GenServer
+  alias Modbus.Transport
+  alias Modbus.Protocol
+  alias Modbus.Registry
+  alias Modbus.Shared
 
   def start_link(opts) do
     ip = Keyword.get(opts, :ip, {127, 0, 0, 1})
     port = Keyword.get(opts, :port, 0)
     model = Keyword.fetch!(opts, :model)
-    GenServer.start_link(__MODULE__, {ip, port, model})
+    proto = Keyword.get(opts, :proto, :tcp)
+    transm = Registry.lookup!({:trans, :tcp})
+    protom = Registry.lookup!({:proto, proto})
+    init = %{trans: transm, proto: protom, model: model, port: port, ip: ip}
+    GenServer.start_link(__MODULE__, init)
   end
 
-  def init({ip, port, model}) do
-    {:ok, shared} = Shared.start_link(model)
-    opts = [:binary, ip: ip, packet: :raw, active: false]
+  def init(init) do
+    {:ok, shared} = Shared.start_link(init.model)
+    opts = [:binary, ip: init.ip, packet: :raw, active: false]
 
-    case :gen_tcp.listen(port, opts) do
+    case :gen_tcp.listen(init.port, opts) do
       {:ok, listener} ->
-        spawn_link(fn -> accept(listener, shared) end)
         {:ok, {ip, port}} = :inet.sockname(listener)
 
-        {:ok,
-         %{
-           ip: ip,
-           port: port,
-           shared: shared,
-           listener: listener
-         }}
+        init = Map.put(init, :ip, ip)
+        init = Map.put(init, :port, port)
+        init = Map.put(init, :shared, shared)
+        init = Map.put(init, :listener, listener)
+
+        spawn_link(fn -> accept(init) end)
+
+        {:ok, init}
 
       {:error, reason} ->
         {:stop, reason}
@@ -52,37 +58,37 @@ defmodule Modbus.Tcp.Slave do
     {:reply, state.port, state}
   end
 
-  defp accept(listener, shared) do
-    case :gen_tcp.accept(listener) do
+  defp accept(%{shared: shared, proto: proto} = state) do
+    case :gen_tcp.accept(state.listener) do
       {:ok, socket} ->
-        spawn(fn -> client(socket, shared) end)
-        accept(listener, shared)
+        trans = {state.trans, socket}
+        spawn(fn -> client(shared, trans, proto) end)
+        accept(state)
 
       {:error, reason} ->
         Process.exit(self(), reason)
     end
   end
 
-  def client(socket, shared) do
-    case :gen_tcp.recv(socket, 0) do
+  def client(shared, trans, proto) do
+    case Transport.read(trans, 0, -1) do
       {:ok, data} ->
-        {cmd, transid} = Tcp.parse_req(data)
-        result = Shared.apply(shared, cmd)
+        {cmd, tid} = Protocol.parse_req(proto, data)
 
-        case result do
+        case Shared.apply(shared, cmd) do
           :ok ->
-            resp = Tcp.pack_res(cmd, nil, transid)
-            :gen_tcp.send(socket, resp)
+            resp = Protocol.pack_res(proto, cmd, nil, tid)
+            Transport.write(trans, resp)
 
           {:ok, values} ->
-            resp = Tcp.pack_res(cmd, values, transid)
-            :gen_tcp.send(socket, resp)
+            resp = Protocol.pack_res(proto, cmd, values, tid)
+            Transport.write(trans, resp)
 
           _ ->
             :ignore
         end
 
-        client(socket, shared)
+        client(shared, trans, proto)
 
       {:error, reason} ->
         Process.exit(self(), reason)

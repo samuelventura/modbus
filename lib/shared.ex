@@ -1,4 +1,4 @@
-defmodule Modbus.Model.Shared do
+defmodule Modbus.Shared do
   @moduledoc false
   alias Modbus.Model
 

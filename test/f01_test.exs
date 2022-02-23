@@ -1,6 +1,6 @@
 defmodule Modbus.F01Test do
   use ExUnit.Case
-  import TestHelper
+  import Modbus.TestHelper
 
   test "Read 0 from Single Coil" do
     model0 = %{0x50 => %{{:c, 0x5152} => 0}}
