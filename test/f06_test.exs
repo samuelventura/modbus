@@ -1,6 +1,6 @@
 defmodule Modbus.F06Test do
   use ExUnit.Case
-  import TestHelper
+  import Modbus.TestHelper
 
   test "Write 0x6162 to Single Holding Register" do
     model0 = %{0x50 => %{{:hr, 0x5152} => 0}}

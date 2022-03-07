@@ -1,6 +1,6 @@
 defmodule Modbus.Echo do
-  use GenServer
   @moduledoc false
+  use GenServer
 
   def start_link(opts \\ []) do
     ip = Keyword.get(opts, :ip, {127, 0, 0, 1})

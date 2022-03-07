@@ -1,6 +1,6 @@
 defmodule Modbus.F15Test do
   use ExUnit.Case
-  import TestHelper
+  import Modbus.TestHelper
 
   test "Write 011 to Multiple Coils" do
     model0 = %{

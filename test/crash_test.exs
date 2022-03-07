@@ -2,9 +2,8 @@ defmodule Modbus.CrashTest do
   use ExUnit.Case
 
   test "master exists on non normal process exit" do
-    # run with: mix slave
-    alias Modbus.Tcp.Slave
-    alias Modbus.Tcp.Master
+    alias Modbus.Slave
+    alias Modbus.Master
 
     # start your slave with a shared model
     model = %{0x50 => %{{:c, 0x5152} => 0}}
@@ -15,8 +14,8 @@ defmodule Modbus.CrashTest do
 
     pid =
       spawn(fn ->
-        {:ok, mpid} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
-        send(self, mpid)
+        {:ok, master} = Master.start_link(ip: {127, 0, 0, 1}, port: port)
+        send(self, master)
 
         receive do
           reason -> Process.exit(self(), reason)
@@ -26,10 +25,10 @@ defmodule Modbus.CrashTest do
     # sockets have been tested separately to
     # auto close even on normal process exit
     ref = :erlang.monitor(:process, pid)
-    assert_receive mpid, 400
+    assert_receive master, 400
     send(pid, :crash)
     assert_receive {:DOWN, ^ref, :process, ^pid, :crash}, 400
     # crash required for linked process to exit
-    assert false == Process.alive?(mpid)
+    assert false == Process.alive?(master)
   end
 end

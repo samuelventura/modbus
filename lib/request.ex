@@ -1,6 +1,6 @@
 defmodule Modbus.Request do
   @moduledoc false
-  alias Modbus.Helper
+  alias Modbus.Utils
 
   def pack({:rc, slave, address, count}) do
     reads(:d, slave, 1, address, count)
@@ -63,14 +63,14 @@ defmodule Modbus.Request do
   end
 
   def parse(<<slave, 15, address::16, count::16, bytes, data::binary>>) do
-    ^bytes = Helper.byte_count(count)
-    values = Helper.bin_to_bitlist(count, data)
+    ^bytes = Utils.byte_count(count)
+    values = Utils.bin_to_bitlist(count, data)
     {:fc, slave, address, values}
   end
 
   def parse(<<slave, 16, address::16, count::16, bytes, data::binary>>) do
     ^bytes = 2 * count
-    values = Helper.bin_to_reglist(count, data)
+    values = Utils.bin_to_reglist(count, data)
     {:phr, slave, address, values}
   end
 
@@ -99,7 +99,7 @@ defmodule Modbus.Request do
   end
 
   def length({:fc, _slave, _address, values}) when is_list(values) do
-    7 + Helper.byte_count(Enum.count(values))
+    7 + Utils.byte_count(Enum.count(values))
   end
 
   def length({:phr, _slave, _address, values}) when is_list(values) do
@@ -111,7 +111,7 @@ defmodule Modbus.Request do
   end
 
   defp write(:d, slave, function, address, value) do
-    <<slave, function, address::16, Helper.bool_to_byte(value), 0x00>>
+    <<slave, function, address::16, Utils.bool_to_byte(value), 0x00>>
   end
 
   defp write(:a, slave, function, address, value) do
@@ -120,15 +120,15 @@ defmodule Modbus.Request do
 
   defp writes(:d, slave, function, address, values) do
     count = Enum.count(values)
-    bytes = Helper.byte_count(count)
-    data = Helper.bitlist_to_bin(values)
+    bytes = Utils.byte_count(count)
+    data = Utils.bitlist_to_bin(values)
     <<slave, function, address::16, count::16, bytes, data::binary>>
   end
 
   defp writes(:a, slave, function, address, values) do
     count = Enum.count(values)
     bytes = 2 * count
-    data = Helper.reglist_to_bin(values)
+    data = Utils.reglist_to_bin(values)
     <<slave, function, address::16, count::16, bytes, data::binary>>
   end
 end

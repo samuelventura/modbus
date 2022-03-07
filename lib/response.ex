@@ -1,28 +1,28 @@
 defmodule Modbus.Response do
   @moduledoc false
-  alias Modbus.Helper
+  alias Modbus.Utils
 
   def pack({:rc, slave, _address, count}, values) do
     ^count = Enum.count(values)
-    data = Helper.bitlist_to_bin(values)
+    data = Utils.bitlist_to_bin(values)
     reads(slave, 1, data)
   end
 
   def pack({:ri, slave, _address, count}, values) do
     ^count = Enum.count(values)
-    data = Helper.bitlist_to_bin(values)
+    data = Utils.bitlist_to_bin(values)
     reads(slave, 2, data)
   end
 
   def pack({:rhr, slave, _address, count}, values) do
     ^count = Enum.count(values)
-    data = Helper.reglist_to_bin(values)
+    data = Utils.reglist_to_bin(values)
     reads(slave, 3, data)
   end
 
   def pack({:rir, slave, _address, count}, values) do
     ^count = Enum.count(values)
-    data = Helper.reglist_to_bin(values)
+    data = Utils.reglist_to_bin(values)
     reads(slave, 4, data)
   end
 
@@ -43,23 +43,23 @@ defmodule Modbus.Response do
   end
 
   def parse({:rc, slave, _address, count}, <<slave, 1, bytes, data::binary>>) do
-    ^bytes = Helper.byte_count(count)
-    Helper.bin_to_bitlist(count, data)
+    ^bytes = Utils.byte_count(count)
+    Utils.bin_to_bitlist(count, data)
   end
 
   def parse({:ri, slave, _address, count}, <<slave, 2, bytes, data::binary>>) do
-    ^bytes = Helper.byte_count(count)
-    Helper.bin_to_bitlist(count, data)
+    ^bytes = Utils.byte_count(count)
+    Utils.bin_to_bitlist(count, data)
   end
 
   def parse({:rhr, slave, _address, count}, <<slave, 3, bytes, data::binary>>) do
     ^bytes = 2 * count
-    Helper.bin_to_reglist(count, data)
+    Utils.bin_to_reglist(count, data)
   end
 
   def parse({:rir, slave, _address, count}, <<slave, 4, bytes, data::binary>>) do
     ^bytes = 2 * count
-    Helper.bin_to_reglist(count, data)
+    Utils.bin_to_reglist(count, data)
   end
 
   def parse({:fc, slave, address, 0}, <<slave, 5, address::16, 0x00, 0x00>>) do
@@ -85,11 +85,11 @@ defmodule Modbus.Response do
   end
 
   def length({:rc, _slave, _address, count}) do
-    3 + Helper.byte_count(count)
+    3 + Utils.byte_count(count)
   end
 
   def length({:ri, _slave, _address, count}) do
-    3 + Helper.byte_count(count)
+    3 + Utils.byte_count(count)
   end
 
   def length({:rhr, _slave, _address, count}) do
@@ -114,7 +114,7 @@ defmodule Modbus.Response do
   end
 
   defp write(:d, slave, function, address, value) do
-    <<slave, function, address::16, Helper.bool_to_byte(value), 0x00>>
+    <<slave, function, address::16, Utils.bool_to_byte(value), 0x00>>
   end
 
   defp write(:a, slave, function, address, value) do
