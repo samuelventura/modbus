@@ -190,3 +190,18 @@ Version 0.1.0
 - [x] Modbus TCP master
 - [x] Request/response packet builder and parser
 - [x] Device model to emulate slave interaction
+
+## Helpers
+
+```elixir
+#Packet encoding
+iex(1)> Modbus.Rtu.Protocol.pack_req({:fc, 1, 4, 1}) |> Base.encode16
+"01050004FF00CDFB"
+iex(2)> Modbus.Tcp.Protocol.pack_req({:fc, 1, 4, 1}, 0) |> Base.encode16
+"00000000000601050004FF00"
+#Packet decoding
+iex(3)> Base.decode16!("01050004FF00CDFB") |> Modbus.Rtu.Protocol.parse_req
+{{:fc, 1, 4, 1}, nil}
+iex(4)> Base.decode16!("00000000000601050004FF00") |> Modbus.Tcp.Protocol.parse_req
+{{:fc, 1, 4, 1}, 0}
+```
