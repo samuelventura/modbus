@@ -80,11 +80,7 @@ defmodule Modbus.Master do
   """
 
   def start_link(opts) do
-    transm = Keyword.get(opts, :trans, Modbus.Tcp.Transport)
-    protom = Keyword.get(opts, :proto, Modbus.Tcp.Protocol)
-    tid = Protocol.next(protom, nil)
-    init = %{trans: transm, proto: protom, opts: opts, tid: tid}
-    GenServer.start_link(__MODULE__.Server, init)
+    GenServer.start_link(__MODULE__.Server, opts)
   end
 
   @doc """
@@ -117,34 +113,29 @@ defmodule Modbus.Master do
     GenServer.call(master, {:exec, cmd, timeout})
   end
 
-  defmodule Server do
-    @moduledoc false
-    use GenServer
+  defmodule Connection do
+    @to 2000
 
-    def init(%{trans: transm, opts: opts} = init) do
+    def open(opts) do
+      transm = Keyword.get(opts, :trans, Modbus.Tcp.Transport)
+      protom = Keyword.get(opts, :proto, Modbus.Tcp.Protocol)
+      tid = Protocol.next(protom, nil)
+
       case Transport.open(transm, opts) do
         {:ok, transi} ->
           transp = {transm, transi}
-          {:ok, %{trans: transp, proto: init.proto, tid: init.tid}}
+          {:ok, %{trans: transp, proto: protom, tid: tid}}
 
         {:error, reason} ->
-          {:stop, reason}
+          {:error, reason}
       end
     end
 
-    def terminate(_reason, %{trans: trans}) do
+    def close(%{trans: trans}) do
       Transport.close(trans)
     end
 
-    def handle_call({:get, :tid}, _from, state) do
-      {:reply, state.tid, state}
-    end
-
-    def handle_call({:update, :tid, tid}, _from, state) do
-      {:reply, :ok, Map.put(state, :tid, tid)}
-    end
-
-    def handle_call({:exec, cmd, timeout}, _from, state) do
+    def exec(state, cmd, timeout \\ @to) do
       %{trans: trans, proto: proto, tid: tid} = state
       state = Map.put(state, :tid, Protocol.next(state.proto, tid))
 
@@ -162,20 +153,23 @@ defmodule Modbus.Master do
                       _ -> {:ok, values}
                     end
 
-                  error ->
-                    error
+                  {:error, reason} ->
+                    {:error, reason}
                 end
 
-              error ->
-                error
+              {:error, reason} ->
+                {:error, reason}
             end
 
-          error ->
-            error
+          {:error, reason} ->
+            {:error, reason}
         end
 
-      {:reply, result, state}
+      {state, result}
     end
+
+    def get_tid(state), do: Map.get(state, :tid)
+    def put_tid(state, tid), do: Map.put(state, :tid, tid)
 
     defp request(proto, cmd, tid) do
       try do
@@ -186,6 +180,35 @@ defmodule Modbus.Master do
         _ ->
           {:error, {:invalid, cmd}}
       end
+    end
+  end
+
+  defmodule Server do
+    @moduledoc false
+    use GenServer
+
+    def init(opts) do
+      case Connection.open(opts) do
+        {:ok, state} -> {:ok, state}
+        {:error, reason} -> {:stop, reason}
+      end
+    end
+
+    def terminate(_reason, state) do
+      Connection.close(state)
+    end
+
+    def handle_call({:get, :tid}, _from, state) do
+      {:reply, Connection.get_tid(state), state}
+    end
+
+    def handle_call({:update, :tid, tid}, _from, state) do
+      {:reply, :ok, Connection.put_tid(state, tid)}
+    end
+
+    def handle_call({:exec, cmd, timeout}, _from, state) do
+      {state, result} = Connection.exec(state, cmd, timeout)
+      {:reply, result, state}
     end
   end
 end
