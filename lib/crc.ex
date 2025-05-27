@@ -1,6 +1,5 @@
 defmodule Modbus.Crc do
   @moduledoc false
-  use Bitwise
 
   @hi """
       [

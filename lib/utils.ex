@@ -1,6 +1,5 @@
 defmodule Modbus.Utils do
   @moduledoc false
-  use Bitwise
 
   def byte_count(count) do
     div(count - 1, 8) + 1
