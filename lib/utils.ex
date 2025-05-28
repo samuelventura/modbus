@@ -1,6 +1,13 @@
 defmodule Modbus.Utils do
   @moduledoc false
 
+  def fix_ip(ip) do
+    case is_binary(ip) do
+      true -> :inet.parse_address(~c"#{ip}") |> elem(1)
+      false -> ip
+    end
+  end
+
   def byte_count(count) do
     div(count - 1, 8) + 1
   end

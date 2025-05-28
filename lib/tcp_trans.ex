@@ -2,9 +2,10 @@ defmodule Modbus.Tcp.Transport do
   @moduledoc false
   @behaviour Modbus.Transport
   @to 2000
+  alias Modbus.Utils
 
   def open(opts) do
-    ip = Keyword.fetch!(opts, :ip)
+    ip = Keyword.fetch!(opts, :ip) |> Utils.fix_ip()
     port = Keyword.fetch!(opts, :port)
     timeout = Keyword.get(opts, :timeout, @to)
     opts = [:binary, packet: :raw, active: false]

@@ -4,9 +4,10 @@ defmodule Modbus.Slave do
   alias Modbus.Transport
   alias Modbus.Protocol
   alias Modbus.Shared
+  alias Modbus.Utils
 
   def start_link(opts) do
-    ip = Keyword.get(opts, :ip, {127, 0, 0, 1})
+    ip = Keyword.get(opts, :ip, {127, 0, 0, 1}) |> Utils.fix_ip()
     port = Keyword.get(opts, :port, 0)
     model = Keyword.fetch!(opts, :model)
     trans = Modbus.Tcp.Transport

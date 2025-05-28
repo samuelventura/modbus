@@ -1,9 +1,10 @@
 defmodule Modbus.Echo do
   @moduledoc false
   use GenServer
+  alias Modbus.Utils
 
   def start_link(opts \\ []) do
-    ip = Keyword.get(opts, :ip, {127, 0, 0, 1})
+    ip = Keyword.get(opts, :ip, {127, 0, 0, 1}) |> Utils.fix_ip()
     port = Keyword.get(opts, :port, 0)
     GenServer.start_link(__MODULE__, {ip, port})
   end
